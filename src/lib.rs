@@ -74,7 +74,7 @@ impl AzureAuth {
         })
     }
 
-    fn validate_token(&mut self, token: &str) -> Result<Token<Header, Claims>, AuthErr> {
+    pub fn validate_token(&mut self, token: &str) -> Result<Token<Header, Claims>, AuthErr> {
         let decoded = self.validate_token_authenticity(token)?;
         let decoded = self.validate_aud(decoded)?;
 
