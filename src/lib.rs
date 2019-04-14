@@ -43,7 +43,7 @@ const AZ_OPENID_URL: &str =
 /// - If the tokens fails it's authenticity test
 /// - If the token is invalid
 #[derive(Debug, Clone)]
-struct AzureAuth {
+pub struct AzureAuth {
     app_key: String,
     jwks_uri: String,
     public_keys: Option<Vec<KeyPairs>>,
