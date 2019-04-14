@@ -37,6 +37,7 @@ The validation will `Error` on a failed validation providing more granularity fo
 was rejected.
 
 **You'll need:**
+
 You will need a private app_id created by Azure for your application to be able to veriify that
 the token is created for your application (and not anyone with a valid Azure token can log in). This is the ID this library
 needs from you to authenticate that the token vas issued for your application.
@@ -45,9 +46,9 @@ You get a verified token parsed for you in return.
 
 **You still must take care of:**
 
-1. That the user has the right access to your system yourself
-2. That the token hasn't expired
-3. That the tokens `nbf` (Not Before) is valid
-4. Any other information that is valid for your use case
+1. Validating that the user has the right access to your system yourself
+2. Validating that the token hasn't expired
+3. Validating that the tokens `nbf` (Not Before) is valid
+4. Validating any other information that is important for your use case
 
 For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens

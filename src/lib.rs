@@ -5,12 +5,12 @@
 //!
 //! It will also check that this token is issued to the right audience matching the `aud` property of the token with
 //! the client_id you got when you registered your app in Azure. If either of these fail, the token is invalid.
-//! 
+//!
 //! # Security
 //! You will need a private app_id created by Azure for your application to be able to veriify that
-//! the token is created for your application (and not anyone with a valid Azure token can log in) 
+//! the token is created for your application (and not anyone with a valid Azure token can log in)
 //! and you will need to authenticate that the user has the right access to your system.
-//! 
+//!
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 use chrono::{Duration, Local, NaiveDateTime};
 use crypto;
@@ -54,13 +54,12 @@ struct AzureAuth {
 }
 
 impl AzureAuth {
-
-    /// Returns a new instance. One thing to note that this method will call the Microsoft apis to fetch the 
-    /// current keys an this can fail. The public keys are fetched since we will not be able to perform any verification 
+    /// Returns a new instance. One thing to note that this method will call the Microsoft apis to fetch the
+    /// current keys an this can fail. The public keys are fetched since we will not be able to perform any verification
     /// without them. Please note that this method is quite expensive to do. Try keeping the object alive instead of creating
     /// new objects. If you need to pass around an instance of the object, then cloning it will be cheaper than creating a
-    /// new one. 
-    /// 
+    /// new one.
+    ///
     /// # Errors
     /// If there is a connection issue to the Microsoft public key apis.
     pub fn new(app_key: impl Into<String>) -> Result<Self, AuthErr> {
@@ -82,7 +81,10 @@ impl AzureAuth {
         Ok(decoded)
     }
 
-    fn validate_token_authenticity(&mut self, token: &str) -> Result<Token<Header, Claims>, AuthErr> {
+    fn validate_token_authenticity(
+        &mut self,
+        token: &str,
+    ) -> Result<Token<Header, Claims>, AuthErr> {
         if !self.is_keys_valid() {
             self.refresh_pub_keys()?;
         }
@@ -137,7 +139,6 @@ impl AzureAuth {
         &mut self,
         token: Token<Header, Claims>,
     ) -> Result<Token<Header, Claims>, AuthErr> {
-
         println!("AUD: {:?}", token.claims.reg.aud);
         match &token.claims.reg.aud {
             Some(aud) => {
@@ -146,8 +147,8 @@ impl AzureAuth {
                 } else {
                     Err(AuthErr::InvalidToken)
                 }
-            },
-            None => Err(AuthErr::InvalidToken)
+            }
+            None => Err(AuthErr::InvalidToken),
         }
     }
 
