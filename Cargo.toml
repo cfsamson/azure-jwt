@@ -1,0 +1,7 @@
+[package]
+name = "azure_auth_rs"
+version = "0.1.0"
+authors = ["Carl Fredrik Samson <cf@samson.no>"]
+edition = "2018"
+
+[dependencies]
