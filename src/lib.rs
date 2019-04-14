@@ -14,12 +14,10 @@
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 use chrono::{Duration, Local, NaiveDateTime};
 use crypto;
-use jwt::{self, Claims, Header, Token};
+use jwt::{self, Claims, Header, Token, header::HeaderType, header::Algorithm};
 use reqwest::{self, Response};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
-
-pub type AuthToken = Token<Header, Claims>;
 
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
@@ -53,6 +51,7 @@ pub struct AzureAuth {
     exp_hours: i64,
     retry_counter: u32,
     retry_option: bool,
+    simple_token: Option<AuthToken>,
 }
 
 impl AzureAuth {
@@ -73,14 +72,26 @@ impl AzureAuth {
             exp_hours: 24,
             retry_counter: 0,
             retry_option: true,
+            simple_token: None,
         })
     }
 
     pub fn validate_token(&mut self, token: &str) -> Result<Token<Header, Claims>, AuthErr> {
         let decoded = self.validate_token_authenticity(token)?;
         let decoded = self.validate_aud(decoded)?;
+        self.simple_token = Some(AuthToken {
+            header: AuthHeader::from(&decoded.header),
+            claims: AuthClaims::from(&decoded.claims),
+        });
 
         Ok(decoded)
+    }
+
+    pub fn simple_token(&self) -> Option<&AuthToken> {
+        match &self.simple_token{
+            Some(t) => Some(t),
+            None => None,
+        }
     }
 
     fn validate_token_authenticity(
@@ -198,6 +209,66 @@ impl AzureAuth {
         let resp: OpenIdResponse = resp.json().map_err(|e| AuthErr::Other(e.to_string()))?;
 
         Ok(resp.jwks_uri)
+    }
+}
+
+/// Simplified version of the JWT struct with the most important information for further processing of
+/// Azure JWT tokens
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthToken {
+    pub header: AuthHeader,
+    pub claims: AuthClaims,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthClaims {
+    pub iss: Option<String>,
+    pub sub: Option<String>,
+    pub aud: Option<String>,
+    pub exp: Option<u64>,
+    pub nbf: Option<u64>,
+    pub iat: Option<u64>,
+    pub jti: Option<String>,
+}
+
+impl From<&Claims> for AuthClaims {
+    fn from(c: &Claims) -> Self {
+        AuthClaims {
+            iss: c.reg.iss.clone(),
+            sub: c.reg.sub.clone(),
+            aud: c.reg.aud.clone(),
+            exp: c.reg.exp,
+            nbf: c.reg.nbf,
+            iat: c.reg.iat,
+            jti: c.reg.jti.clone(),
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthHeader {
+    pub typ: Option<String>,
+    pub kid: Option<String>,
+    pub alg: String,
+}
+
+impl From<&Header> for AuthHeader {
+    fn from (h: &Header) -> Self {
+        let typ = match &h.typ {
+            Some(t) => match t {
+                HeaderType::JWT => Some("JWT".to_string()),
+            },
+            None => None,
+        };
+
+        let alg = match h.alg {
+            Algorithm::HS256 => "HS256",
+            Algorithm::RS256 => "Rs256",
+        };
+        
+        AuthHeader {
+            typ,
+            kid: h.kid.clone(),
+            alg: alg.to_string(),
+        }
     }
 }
 
