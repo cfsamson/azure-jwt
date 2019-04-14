@@ -42,7 +42,7 @@ const AZ_OPENID_URL: &str =
 /// - If the token can't be parsed as a valid Azure token
 /// - If the tokens fails it's authenticity test
 /// - If the token is invalid
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AzureAuth {
     app_key: String,
     jwks_uri: String,
@@ -54,6 +54,15 @@ struct AzureAuth {
 }
 
 impl AzureAuth {
+
+    /// Returns a new instance. One thing to note that this method will call the Microsoft apis to fetch the 
+    /// current keys an this can fail. The public keys are fetched since we will not be able to perform any verification 
+    /// without them. Please note that this method is quite expensive to do. Try keeping the object alive instead of creating
+    /// new objects. If you need to pass around an instance of the object, then cloning it will be cheaper than creating a
+    /// new one. 
+    /// 
+    /// # Errors
+    /// If there is a connection issue to the Microsoft public key apis.
     pub fn new(app_key: impl Into<String>) -> Result<Self, AuthErr> {
         Ok(AzureAuth {
             app_key: app_key.into(),
@@ -194,7 +203,7 @@ struct Keys {
     keys: Vec<KeyPairs>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct KeyPairs {
     x5t: String,
     x5c: Vec<String>,
