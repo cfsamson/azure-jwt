@@ -19,6 +19,8 @@ use reqwest::{self, Response};
 use serde::Deserialize;
 use std::{error::Error, fmt};
 
+pub type AuthToken = Token<Header, Claims>;
+
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
 
