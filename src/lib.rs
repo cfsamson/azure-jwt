@@ -12,15 +12,39 @@
 //! and you will need to authenticate that the user has the right access to your system.
 //!
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+use base64;
 use chrono::{Duration, Local, NaiveDateTime};
 use crypto;
-use jwt::{self, Claims, Header, Token, header::HeaderType, header::Algorithm};
+use jsonwebtoken as jwt;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
 
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
+
+#[derive(Debug)]
+pub enum AuthErr {
+    InvalidToken(String),
+    ConnectionError(String),
+    Other(String),
+    ParseError(String),
+}
+
+impl Error for AuthErr {}
+
+impl fmt::Display for AuthErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use AuthErr::*;
+
+        match self {
+            InvalidToken(msg) => write!(f, "Invalid token. {}", msg),
+            ConnectionError(inner) => write!(f, "Could not connect to Microsoft. Error: {}", inner),
+            Other(msg) => write!(f, "An error occurred: {}", msg),
+            ParseError(msg) => write!(f, "Could not parse token. {}", msg),
+        }
+    }
+}
 
 /// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what defaults are set and which
 /// you can change:
@@ -74,23 +98,35 @@ impl AzureAuth {
         })
     }
 
-    pub fn validate_token(&mut self, token: &str) -> Result<Token<Header, Claims>, AuthErr> {
+    fn new_offline(
+        app_key: impl Into<String>,
+        public_keys: Vec<KeyPairs>,
+    ) -> Result<Self, AuthErr> {
+        Ok(AzureAuth {
+            app_key: app_key.into(),
+            jwks_uri: AzureAuth::get_jwks_uri()?,
+            public_keys: Some(public_keys),
+            last_refresh: Some(Local::now().naive_local()),
+            exp_hours: 24,
+            retry_counter: 0,
+            retry_option: true,
+        })
+    }
+
+    pub fn validate_token(&mut self, token: &str) -> Result<Token, AuthErr> {
         let decoded = self.validate_token_authenticity(token)?;
         let decoded = self.validate_aud(decoded)?;
 
         Ok(decoded)
     }
 
-    fn validate_token_authenticity(
-        &mut self,
-        token: &str,
-    ) -> Result<Token<Header, Claims>, AuthErr> {
+    fn validate_token_authenticity(&mut self, token: &str) -> Result<Token, AuthErr> {
         if !self.is_keys_valid() {
             self.refresh_pub_keys()?;
         }
 
-        let decoded: Token<Header, Claims> =
-            Token::parse(token).map_err(|_| AuthErr::ParseError)?;
+        // does not validate the token!
+        let decoded = jwt::decode_header(token).map_err(|e| AuthErr::ParseError(e.to_string()))?;
 
         let key = match &self.public_keys {
             None => {
@@ -98,7 +134,7 @@ impl AzureAuth {
                     "Internal err. No public keys found.".to_string(),
                 ))
             }
-            Some(keys) => match &decoded.header.kid {
+            Some(keys) => match &decoded.kid {
                 None => return Err(AuthErr::Other("No `kid` in token.".to_string())),
                 Some(kid) => keys.iter().find(|k| k.x5t == *kid),
             },
@@ -126,29 +162,25 @@ impl AzureAuth {
             }
         };
 
-        let valid = decoded.verify(auth_key.x5c[0].as_bytes(), crypto::sha2::Sha256::new());
+        let algo = jwt::Validation::new(jwt::Algorithm::RS256);
 
-        if valid {
-            Ok(decoded)
-        } else {
-            Err(AuthErr::InvalidToken)
-        }
+        // the jwt library expects a byte input so we need to decode the
+        // base64 data to an bytearray
+        let key_as_bytes = from_base64_to_bytearray(&auth_key.x5c[0])?;
+
+        let valid: Token = jwt::decode(token, &key_as_bytes, &algo)
+            .map_err(|e| AuthErr::InvalidToken(e.to_string()))?;
+
+        Ok(valid)
     }
 
-    fn validate_aud(
-        &mut self,
-        token: Token<Header, Claims>,
-    ) -> Result<Token<Header, Claims>, AuthErr> {
-        println!("AUD: {:?}", token.claims.reg.aud);
-        match &token.claims.reg.aud {
-            Some(aud) => {
-                if *aud == self.app_key {
-                    Ok(token)
-                } else {
-                    Err(AuthErr::InvalidToken)
-                }
-            }
-            None => Err(AuthErr::InvalidToken),
+    fn validate_aud(&mut self, token: Token) -> Result<Token, AuthErr> {
+        let aud = &token.claims.aud;
+
+        if *aud == self.app_key {
+            Ok(token)
+        } else {
+            Err(AuthErr::InvalidToken(String::new()))
         }
     }
 
@@ -199,7 +231,153 @@ impl AzureAuth {
     }
 }
 
+pub struct AzureJwtHeader {
+    /// Indicates that the token is a JWT.
+    pub typ: String,
+    /// Indicates the algorithm that was used to sign the token. Example: "RS256"
+    pub alg: String,
+    /// Thumbprint for the public key used to sign this token. Emitted in both
+    /// v1.0 and v2.0 id_tokens
+    pub kid: String,
+}
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AzureJwtClaims {
+    /// dentifies the intended recipient of the token. In id_tokens, the audience
+    /// is your app's Application ID, assigned to your app in the Azure portal.
+    /// Your app should validate this value, and reject the token if the value
+    /// does not match.
+    pub aud: String,
+
+    /// The application ID of the client using the token. The application can 
+    /// act as itself or on behalf of a user. The application ID typically 
+    /// represents an application object, but it can also represent a service 
+    /// principal object in Azure AD.
+    pub azp: Option<String>,
+
+    /// Indicates how the client was authenticated. For a public client, the 
+    /// value is "0". If client ID and client secret are used, the value is "1". 
+    /// If a client certificate was used for authentication, the value is "2".
+    pub azpacr: Option<String>,
+
+    /// Identifies the security token service (STS) that constructs and returns
+    /// the token, and the Azure AD tenant in which the user was authenticated.
+    /// If the token was issued by the v2.0 endpoint, the URI will end in /v2.0.
+    /// The GUID that indicates that the user is a consumer user from a Microsoft
+    /// account is 9188040d-6c67-4c5b-b112-36a304b66dad.
+    ///
+    /// Your app should use the GUID portion of the claim to restrict the set of
+    /// tenants that can sign in to the app, if applicable.
+    pub iss: String,
+
+    /// Unix timestamp. "Issued At" indicates when the authentication for this
+    /// token occurred.
+    pub iat: u64,
+
+    /// Records the identity provider that authenticated the subject of the token.
+    /// This value is identical to the value of the Issuer claim unless the user
+    /// account not in the same tenant as the issuer - guests, for instance. If
+    /// the claim isn't present, it means that the value of iss can be used
+    /// instead. For personal accounts being used in an organizational context
+    /// (for instance, a personal account invited to an Azure AD tenant), the idp
+    /// claim may be 'live.com' or an STS URI containing the Microsoft account
+    /// tenant 9188040d-6c67-4c5b-b112-36a304b66dad
+    pub idp: Option<String>,
+
+    /// Unix timestamp. The "nbf" (not before) claim identifies the time before
+    /// which the JWT MUST NOT be accepted for processing.
+    pub nbf: u64,
+
+    /// Unix timestamp. he "exp" (expiration time) claim identifies the
+    /// expiration time on or after which the JWT MUST NOT be accepted for
+    /// processing. It's important to note that a resource may reject the token
+    /// before this time as well - if, for example, a change in authentication
+    /// is required or a token revocation has been detected.
+    pub exp: u64,
+
+    /// The code hash is included in ID tokens only when the ID token is issued
+    /// with an OAuth 2.0 authorization code. It can be used to validate the
+    /// authenticity of an authorization code. For details about performing this
+    /// validation, see the OpenID Connect specification.
+    pub c_hash: Option<String>,
+
+    /// The access token hash is included in ID tokens only when the ID token is
+    /// issued with an OAuth 2.0 access token. It can be used to validate the
+    /// authenticity of an access token. For details about performing this
+    /// validation, see the OpenID Connect specification.
+    pub at_hash: Option<String>,
+
+    /// The email claim is present by default for guest accounts that have an
+    /// email address. Your app can request the email claim for managed users
+    /// (those from the same tenant as the resource) using the email optional
+    /// claim. On the v2.0 endpoint, your app can also request the email OpenID
+    /// Connect scope - you don't need to request both the optional claim and
+    /// the scope to get the claim. The email claim only supports addressable
+    /// mail from the user's profile information.
+    pub preferred_username: String,
+
+    /// The name claim provides a human-readable value that identifies the
+    /// subject of the token. The value isn't guaranteed to be unique, it is
+    /// mutable, and it's designed to be used only for display purposes. The
+    /// profile scope is required to receive this claim.
+    pub name: Option<String>,
+
+    /// The nonce matches the parameter included in the original /authorize
+    /// request to the IDP. If it does not match, your application should reject
+    /// the token.
+    pub nonce: Option<String>,
+
+    /// Guid. The immutable identifier for an object in the Microsoft identity system,
+    /// in this case, a user account. This ID uniquely identifies the user
+    /// across applications - two different applications signing in the same
+    /// user will receive the same value in the oid claim. The Microsoft Graph
+    /// will return this ID as the id property for a given user account. Because
+    /// the oid allows multiple apps to correlate users, the profile scope is
+    /// required to receive this claim. Note that if a single user exists in
+    /// multiple tenants, the user will contain a different object ID in each
+    /// tenant - they're considered different accounts, even though the user
+    /// logs into each account with the same credentials.
+    pub oid: String,
+
+    /// The set of roles that were assigned to the user who is logging in.
+    pub roles: Option<Vec<String>>,
+
+    /// The set of scopes exposed by your application for which the client 
+    /// application has requested (and received) consent. Your app should verify 
+    /// that these scopes are valid ones exposed by your app, and make authorization 
+    /// decisions based on the value of these scopes. Only included for user tokens.
+    pub scp: Option<String>,
+
+    /// The principal about which the token asserts information, such as the
+    /// user of an app. This value is immutable and cannot be reassigned or
+    /// reused. The subject is a pairwise identifier - it is unique to a
+    /// particular application ID. If a single user signs into two different
+    /// apps using two different client IDs, those apps will receive two
+    /// different values for the subject claim. This may or may not be wanted
+    /// depending on your architecture and privacy requirements.
+    pub sub: String,
+
+    /// A GUID that represents the Azure AD tenant that the user is from.
+    /// For work and school accounts, the GUID is the immutable tenant ID of
+    /// the organization that the user belongs to. For personal accounts,
+    /// the value is 9188040d-6c67-4c5b-b112-36a304b66dad. The profile scope is
+    /// required to receive this claim.
+    pub tid: String,
+
+    /// Provides a human readable value that identifies the subject of the
+    /// token. This value isn't guaranteed to be unique within a tenant and
+    /// should be used only for display purposes. Only issued in v1.0 id_tokens.
+    pub unique_name: Option<String>,
+
+    /// Indicates the version of the id_token. Either 1.0 or 2.0.
+    pub ver: String,
+}
+
+fn from_base64_to_bytearray(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
+    let decoded = base64::decode_config(b64_str, base64::STANDARD)
+        .map_err(|e| AuthErr::ParseError(e.to_string()))?;
+    Ok(decoded)
+}
 
 #[derive(Debug, Deserialize)]
 struct Keys {
@@ -217,62 +395,154 @@ struct OpenIdResponse {
     jwks_uri: String,
 }
 
-#[derive(Debug)]
-pub enum AuthErr {
-    InvalidToken,
-    ConnectionError(String),
-    Other(String),
-    ParseError,
-}
-
-impl Error for AuthErr {}
-
-impl fmt::Display for AuthErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use AuthErr::*;
-
-        match self {
-            InvalidToken => write!(f, "Invalid token."),
-            ConnectionError(inner) => write!(f, "Could not connect to Microsoft. Error: {}", inner),
-            Other(msg) => write!(f, "An error occurred: {}", msg),
-            ParseError => write!(f, "Could not parse token."),
-        }
-    }
-}
+type Token = jwt::TokenData<AzureJwtClaims>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // see: https://jwt.io/ and go to "Debugger" section to create a test token.
-    static TEST_TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleTEifQ.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJhdWQiOiJhcHBfc2VjcmV0In0.uyhh9ze3DkqVlEpOyeQin-p4MhrYU4gpdYpY4OOMfyY";
+    const PUBLIC_KEY_TEST: &str = "\
+MIIBCgKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTLUTv4\
+l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2VrUyW\
+yj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8HoGfG\
+/AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBIMc4l\
+QzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/by2h\
+3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQAB";
+
+    const PRIVATE_KEY_TEST: &str = "\
+MIIEpAIBAAKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTL\
+UTv4l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2V\
+rUyWyj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8H\
+oGfG/AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBI\
+Mc4lQzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/\
+by2h3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQABAoIBAHREk0I0O9DvECKd\
+WUpAmF3mY7oY9PNQiu44Yaf+AoSuyRpRUGTMIgc3u3eivOE8ALX0BmYUO5JtuRNZ\
+Dpvt4SAwqCnVUinIf6C+eH/wSurCpapSM0BAHp4aOA7igptyOMgMPYBHNA1e9A7j\
+E0dCxKWMl3DSWNyjQTk4zeRGEAEfbNjHrq6YCtjHSZSLmWiG80hnfnYos9hOr5Jn\
+LnyS7ZmFE/5P3XVrxLc/tQ5zum0R4cbrgzHiQP5RgfxGJaEi7XcgherCCOgurJSS\
+bYH29Gz8u5fFbS+Yg8s+OiCss3cs1rSgJ9/eHZuzGEdUZVARH6hVMjSuwvqVTFaE\
+8AgtleECgYEA+uLMn4kNqHlJS2A5uAnCkj90ZxEtNm3E8hAxUrhssktY5XSOAPBl\
+xyf5RuRGIImGtUVIr4HuJSa5TX48n3Vdt9MYCprO/iYl6moNRSPt5qowIIOJmIjY\
+2mqPDfDt/zw+fcDD3lmCJrFlzcnh0uea1CohxEbQnL3cypeLt+WbU6kCgYEAzSp1\
+9m1ajieFkqgoB0YTpt/OroDx38vvI5unInJlEeOjQ+oIAQdN2wpxBvTrRorMU6P0\
+7mFUbt1j+Co6CbNiw+X8HcCaqYLR5clbJOOWNR36PuzOpQLkfK8woupBxzW9B8gZ\
+mY8rB1mbJ+/WTPrEJy6YGmIEBkWylQ2VpW8O4O0CgYEApdbvvfFBlwD9YxbrcGz7\
+MeNCFbMz+MucqQntIKoKJ91ImPxvtc0y6e/Rhnv0oyNlaUOwJVu0yNgNG117w0g4\
+t/+Q38mvVC5xV7/cn7x9UMFk6MkqVir3dYGEqIl/OP1grY2Tq9HtB5iyG9L8NIam\
+QOLMyUqqMUILxdthHyFmiGkCgYEAn9+PjpjGMPHxL0gj8Q8VbzsFtou6b1deIRRA\
+2CHmSltltR1gYVTMwXxQeUhPMmgkMqUXzs4/WijgpthY44hK1TaZEKIuoxrS70nJ\
+4WQLf5a9k1065fDsFZD6yGjdGxvwEmlGMZgTwqV7t1I4X0Ilqhav5hcs5apYL7gn\
+PYPeRz0CgYALHCj/Ji8XSsDoF/MhVhnGdIs2P99NNdmo3R2Pv0CuZbDKMU559LJH\
+UvrKS8WkuWRDuKrz1W/EQKApFjDGpdqToZqriUFQzwy7mR3ayIiogzNtHcvbDHx8\
+oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
+
+    fn test_token_header() -> String {
+        format!(
+            r#"{{
+                "typ": "JWT",
+                "alg": "RS256",
+                "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
+            }}"#
+        )
+    }
+
+    fn test_token_claims() -> String {
+        format!(
+            r#"{{
+                "aud": "6e74172b-be56-4843-9ff4-e66a39bb12e3",
+                "iss": "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0",
+                "iat": {},
+                "nbf": {},
+                "exp": {},
+                "aio": "AXQAi/8IAAAAtAaZLo3ChMif6KOnttRB7eBq4/DccQzjcJGxPYy/C3jDaNGxXd6wNIIVGRghNRnwJ1lOcAnNZcjvkoyrFxCttv33140RioOFJ4bCCGVuoCag1uOTT22222gHwLPYQ/uf79QX+0KIijdrmp69RctzmQ==",
+                "azp": "6e74172b-be56-4843-9ff4-e66a39bb12e3",
+                "name": "Abe Lincoln",
+                "azpacr": "0",
+                "oid": "690222be-ff1a-4d56-abd1-7e4f7d38e474",
+                "preferred_username": "abeli@microsoft.com",
+                "rh": "I",
+                "scp": "access_as_user",
+                "sub": "HKZpfaHyWadeOouYlitjrI-KffTm222X5rrV3xDqfKQ",
+                "tid": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+                "uti": "fqiBqXLPj0eQa82S-IYFAA",
+                "ver": "2.0"
+            }}"#, 
+        chrono::Utc::now().timestamp() - 1000, 
+        chrono::Utc::now().timestamp() - 2000, 
+        chrono::Utc::now().timestamp() + 1000)
+    }
+
+    // We create a test token from parts here. We use the v2 token used as example 
+    // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+    fn generate_test_token() -> String {
+        // jwt library expects a `*.der` key wich is a byte encoded file so 
+        // we need to convert the key from base64 to their byte value to use them.
+        let private_key = from_base64_to_bytearray(PRIVATE_KEY_TEST).expect("priv_key");
+
+        // we need to construct the calims in a function since we need to set
+        // the expiration to current time
+        let test_token_playload = test_token_claims(); 
+        let test_token_header =  test_token_header(); 
+        
+        // we base64 (url-safe-base64) the header and claims and arrange
+        // as a jwt payload -> header_as_base64.claims_as_base64
+        let test_token = [
+            base64::encode_config(&test_token_header, base64::URL_SAFE),
+            base64::encode_config(&test_token_playload, base64::URL_SAFE),
+        ]
+        .join(".");
+
+        // we create the signature using our private key
+        let signature = jwt::sign(&test_token, &private_key, jwt::Algorithm::RS256).unwrap();
+
+        
+        let public_key =  from_base64_to_bytearray(PUBLIC_KEY_TEST).expect("publ_key");
+
+        // we construct a complete token which looks like: header.claims.signature
+        let complete_token = format!("{}.{}", test_token, signature);
+        
+        // we verify the signature here as well to catch errors in our testing
+        // code early
+        let verified = jwt::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
+            .expect("verified");
+        assert!(verified);
+
+
+        complete_token
+    }
+
     #[test]
     fn decode_token() {
+        let token = generate_test_token();
+        let pub_key = include_str!("../tests/public_key.pem");
+        let pub_key = pub_key.lines().collect::<Vec<&str>>().concat();
+        //let pub_key = from_base64_to_bytearray(&pub_key).unwrap();
+
         let key = KeyPairs {
-            x5t: "key1".to_string(),
-            x5c: vec!["azure_auth_test".to_string()],
+            x5t: "i6lGk3FZzxRcUb2C3nEQ7syHJlY".to_string(),
+            x5c: vec![pub_key.to_string()],
         };
 
-        let mut az_auth = AzureAuth::new("app_secret").unwrap();
-        az_auth.public_keys = Some(vec![key]);
-        az_auth.last_refresh = Some(Local::now().naive_local());
+        let mut az_auth =
+            AzureAuth::new_offline("6e74172b-be56-4843-9ff4-e66a39bb12e3", vec![key]).unwrap();
 
-        az_auth.validate_token(TEST_TOKEN).unwrap();
+        az_auth.validate_token(&token).unwrap();
     }
 
     // #[test]
     // TODO: Refactor to make testing easier
     fn decode_token_retry() {
+        let token = generate_test_token();
         let key = KeyPairs {
             x5t: "Xey1".to_string(),
             x5c: vec!["azure_auth_test".to_string()],
         };
 
-        let mut az_auth = AzureAuth::new("app_secret").unwrap();
+        let mut az_auth = AzureAuth::new("6e74172b-be56-4843-9ff4-e66a39bb12e3").unwrap();
         az_auth.public_keys = Some(vec![key]);
         az_auth.last_refresh = Some(Local::now().naive_local() - Duration::hours(2));
 
-        az_auth.validate_token(TEST_TOKEN).unwrap();
+        az_auth.validate_token(&token).unwrap();
     }
 
     #[test]
