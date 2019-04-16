@@ -1,10 +1,11 @@
 //! # A library that authenticates Azure JWT tokens.
 //!
-//! This library will fetch public keys from Microsoft and validate the authenticity of the Tokens and verify that they
-//! are issued by Azure and are not tampered with.
+//! This library will fetch public keys from Microsoft and validate the authenticity of the Tokens 
+//! and verify that they are issued by Azure and are not tampered with.
 //!
-//! It will also check that this token is issued to the right audience matching the `aud` property of the token with
-//! the client_id you got when you registered your app in Azure. If either of these fail, the token is invalid.
+//! It will also check that this token is issued to the right audience matching the `aud` property 
+//! of the token with the client_id you got when you registered your app in Azure. If either of 
+//! these fail, the token is invalid.
 //! 
 //! # Dafault validation
 //! 
@@ -16,14 +17,14 @@
 //! 5. That the token is not issued in the future
 //! 6. That the algorithm the token tells us to use is the same as we use*
 //! 
-//! * Note that we do NOT use the token header to set the algorithm for us, look [at this article for more 
-//! information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
+//! * Note that we do NOT use the token header to set the algorithm for us, look [at this article 
+//! for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
 //! 
-//! The validation will `Error` on a failed validation providing more granularity for library users to find out why the token
-//! was rejected.
+//! The validation will `Error` on a failed validation providing more granularity for library users 
+//! to find out why the token was rejected.
 //!
-//! If the token is invalid it will return an Error instead of a boolean. The main reason for this is easier logging of what
-//! type of test it failed.
+//! If the token is invalid it will return an Error instead of a boolean. The main reason for this 
+//! is easier logging of what type of test it failed.
 //!
 //! # Security
 //! You will need a private app_id created by Azure for your application to be able to veriify that
@@ -36,43 +37,25 @@ use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
-use std::{error::Error, fmt};
+
+mod error;
+pub use error::AuthErr;
 
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
 
-#[derive(Debug)]
-pub enum AuthErr {
-    InvalidToken(String),
-    ConnectionError(String),
-    Other(String),
-    ParseError(String),
-}
-
-impl Error for AuthErr {}
-
-impl fmt::Display for AuthErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use AuthErr::*;
-
-        match self {
-            InvalidToken(msg) => write!(f, "Invalid token. {}", msg),
-            ConnectionError(inner) => write!(f, "Could not connect to Microsoft. Error: {}", inner),
-            Other(msg) => write!(f, "An error occurred: {}", msg),
-            ParseError(msg) => write!(f, "Could not parse token. {}", msg),
-        }
-    }
-}
-
-/// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what defaults are set and which
-/// you can change:
+/// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what 
+/// defaults are set and which you can change:
 ///
 /// # Defaults
 /// 
-/// - Public key expiration: dafault set to 24h, use `set_expiration` to set a different expiration in hours.
-/// - Hashing algorithm: Sha256, you can't change this setting. Submit an issue in the github repo if this is important to you
-/// - Retry on no match. If no matching key is found and our keys are older than an hour, we refresh the keys and try once more.
-///   Limited to once in an hour. You can disable this by calling `set_no_retry()`.
+/// - Public key expiration: dafault set to 24h, use `set_expiration` to set a different expiration 
+///   in hours.
+/// - Hashing algorithm: Sha256, you can't change this setting. Submit an issue in the github repo 
+///   if this is important to you
+/// - Retry on no match. If no matching key is found and our keys are older than an hour, we 
+///   refresh the keys and try once more. Limited to once in an hour. You can disable this by 
+///   calling `set_no_retry()`.
 /// - The timestamps are given a 60s "leeway" to account for time skew between servers
 ///
 /// # Errors:
@@ -89,14 +72,15 @@ pub struct AzureAuth {
     exp_hours: i64,
     retry_counter: u32,
     retry_option: bool,
+    is_offline: bool,
 }
 
 impl AzureAuth {
-    /// One thing to note that this method will call the Microsoft apis to fetch the
-    /// current keys an this can fail. The public keys are fetched since we will not be able to perform any verification
-    /// without them. Please note that this method is quite expensive to do. Try keeping the object alive instead of creating
-    /// new objects. If you need to pass around an instance of the object, then cloning it will be cheaper than creating a
-    /// new one.
+    /// One thing to note that this method will call the Microsoft apis to fetch the current keys 
+    /// an this can fail. The public keys are fetched since we will not be able to perform any 
+    /// verification without them. Please note that this method is quite expensive to do. Try 
+    /// keeping the object alive instead of creating new objects. If you need to pass around an 
+    /// instance of the object, then cloning it will be cheaper than creating a new one.
     ///
     /// # Errors
     /// If there is a connection issue to the Microsoft public key apis.
@@ -109,10 +93,11 @@ impl AzureAuth {
             exp_hours: 24,
             retry_counter: 0,
             retry_option: true,
+            is_offline: false,
         })
     }
 
-    /// For testing in offline situations
+    /// If you want to handle updating the public keys yourself
     fn new_offline(
         aud: impl Into<String>,
         public_keys: Vec<KeyPairs>,
@@ -125,6 +110,7 @@ impl AzureAuth {
             exp_hours: 24,
             retry_counter: 0,
             retry_option: true,
+            is_offline: true,
         })
     }
 
@@ -148,7 +134,7 @@ impl AzureAuth {
     /// # Example
     /// 
     /// ```rust,ignore
-    /// use azure_oauth_rs::*;
+    /// use azure_oauth_r1s::*;
     /// use jsonwebtoken::{Validation, Token};
     /// use serde::{Seralize, Deserialize};
     /// 
@@ -187,20 +173,21 @@ impl AzureAuth {
     where
         for<'de> T: Serialize + Deserialize<'de>,
     {
-        if !self.is_keys_valid() {
+        // if we´re in offline, we never refresh the keys. It's up to the user to do that.
+        if !self.is_keys_valid() && !self.is_offline {
             self.refresh_pub_keys()?;
         }
         // does not validate the token!
-        let decoded = jwt::decode_header(token).map_err(|e| AuthErr::ParseError(e.to_string()))?;
+        let decoded = jwt::decode_header(token)?;
 
         let key = match &self.public_keys {
             None => {
-                return Err(AuthErr::Other(
-                    "Internal err. No public keys found.".to_string(),
+                return Err(
+                    AuthErr::Other("Internal err. No public keys found.".into(),
                 ))
             }
             Some(keys) => match &decoded.kid {
-                None => return Err(AuthErr::Other("No `kid` in token.".to_string())),
+                None => return Err(AuthErr::Other("No `kid` in token.".into())),
                 Some(kid) => keys.iter().find(|k| k.x5t == *kid),
             },
         };
@@ -210,8 +197,8 @@ impl AzureAuth {
         // token.
         // NOTE: needs to be updated if Microsoft changes their spec
         if decoded.alg != jwt::Algorithm::RS256 {
-            return Err(AuthErr::Other(
-                        "Invalid token. Invalid algorithm in header.".to_string(),
+            return Err(
+                AuthErr::Other("Invalid token. Invalid algorithm in header.".into(),
                     ));
         }
 
@@ -226,8 +213,8 @@ impl AzureAuth {
                     unreachable!()
                 } else {
                     self.retry_counter = 0;
-                    return Err(AuthErr::Other(
-                        "Invalid token. Could not verify authenticity.".to_string(),
+                    return Err(
+                        AuthErr::Other("Invalid token. Could not verify authenticity.".into(),
                     ));
                 }
             }
@@ -241,13 +228,16 @@ impl AzureAuth {
         // base64 data to an bytearray
         let key_as_bytes = from_base64_to_bytearray(&auth_key.x5c[0])?;
 
-        let valid: Token<T> = jwt::decode(token, &key_as_bytes, &validator)
-            .map_err(|e| AuthErr::InvalidToken(e.to_string()))?;
+        let valid: Token<T> = jwt::decode(token, &key_as_bytes, &validator)?;
 
         Ok(valid)
     }
 
     fn should_retry(&mut self) -> bool {
+        if self.is_offline {
+            return false;
+        }
+
         match &self.last_refresh {
             Some(lr) => {
                 self.retry_counter == 0 && Local::now().naive_local() - *lr > Duration::hours(1)
@@ -256,7 +246,8 @@ impl AzureAuth {
         }
     }
 
-    /// Sets the expiration of the cached public keys in hours. Pr. 04.2019 Microsoft rotates these every 24h.
+    /// Sets the expiration of the cached public keys in hours. Pr. 04.2019 Microsoft rotates these 
+    /// every 24h.
     pub fn set_expiration(&mut self, hours: i64) {
         self.exp_hours = hours;
     }
@@ -274,8 +265,9 @@ impl AzureAuth {
 
     fn refresh_pub_keys(&mut self) -> Result<(), AuthErr> {
         let mut resp: Response =
-            reqwest::get(&self.jwks_uri).map_err(|e| AuthErr::ConnectionError(e.to_string()))?;
-        let resp: Keys = resp.json().map_err(|e| AuthErr::Other(e.to_string()))?;
+            reqwest::get(&self.jwks_uri)?;
+        let resp: Keys = resp.json()?;
+        self.last_refresh = Some(Local::now().naive_local());
         self.public_keys = Some(resp.keys);
         Ok(())
     }
@@ -287,10 +279,17 @@ impl AzureAuth {
 
     fn get_jwks_uri() -> Result<String, AuthErr> {
         let mut resp: Response =
-            reqwest::get(AZ_OPENID_URL).map_err(|e| AuthErr::ConnectionError(e.to_string()))?;
-        let resp: OpenIdResponse = resp.json().map_err(|e| AuthErr::Other(e.to_string()))?;
+            reqwest::get(AZ_OPENID_URL)?;
+        let resp: OpenIdResponse = resp.json()?;
 
         Ok(resp.jwks_uri)
+    }
+
+    /// If you use the "offline" variant you'll need this to update the public keys, if you don't
+    /// use the offline version you probably don't want to change these unless you're testing.
+    pub fn set_public_keys(&mut self, pub_keys: Vec<KeyPairs>) {
+        self.last_refresh = Some(Local::now().naive_local());
+        self.public_keys = Some(pub_keys);
     }
 }
 
@@ -448,9 +447,9 @@ struct Keys {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct KeyPairs {
-    x5t: String,
-    x5c: Vec<String>,
+pub struct KeyPairs {
+    pub x5t: String,
+    pub x5c: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -603,7 +602,6 @@ mod tests {
         let mut az_auth = AzureAuth::new("6e74172b-be56-4843-9ff4-e66a39bb12e3").unwrap();
         az_auth.public_keys = Some(vec![key]);
         az_auth.last_refresh = Some(Local::now().naive_local() - Duration::hours(2));
-
         az_auth.validate_token(&token).unwrap();
     }
 
