@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 jsonwebtoken = "5.0.1"
-rust-crypto = "0.2.36"
 reqwest = "0.9.14"
 serde = {version="1.0.90", features=["derive"]}
 chrono = "0.4.6"

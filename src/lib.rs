@@ -14,7 +14,6 @@
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 use base64;
 use chrono::{Duration, Local, NaiveDateTime};
-use crypto;
 use jsonwebtoken as jwt;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
@@ -121,16 +120,26 @@ impl AzureAuth {
         Ok(decoded)
     }
 
-    pub fn validate_custom<T>(&mut self, token: &str, validator: &jwt::Validation) -> Result<Token<T>, AuthErr> 
-    where for<'de> T: Serialize + Deserialize<'de> 
+    pub fn validate_custom<T>(
+        &mut self,
+        token: &str,
+        validator: &jwt::Validation,
+    ) -> Result<Token<T>, AuthErr>
+    where
+        for<'de> T: Serialize + Deserialize<'de>,
     {
         let decoded: Token<T> = self.validate_token_authenticity(token, &validator)?;
         Ok(decoded)
     }
 
-
-    fn validate_token_authenticity<T>(&mut self, token: &str, validator: &jwt::Validation) -> Result<Token<T>, AuthErr>
-    where for<'de> T: Serialize + Deserialize<'de> {
+    fn validate_token_authenticity<T>(
+        &mut self,
+        token: &str,
+        validator: &jwt::Validation,
+    ) -> Result<Token<T>, AuthErr>
+    where
+        for<'de> T: Serialize + Deserialize<'de>,
+    {
         if !self.is_keys_valid() {
             self.refresh_pub_keys()?;
         }
@@ -171,7 +180,6 @@ impl AzureAuth {
             }
         };
 
-
         // the jwt library expects a byte input so we need to decode the
         // base64 data to an bytearray
         let key_as_bytes = from_base64_to_bytearray(&auth_key.x5c[0])?;
@@ -182,7 +190,10 @@ impl AzureAuth {
         Ok(valid)
     }
 
-    fn validate_aud(&mut self, token: Token<AzureJwtClaims>) -> Result<Token<AzureJwtClaims>, AuthErr> {
+    fn validate_aud(
+        &mut self,
+        token: Token<AzureJwtClaims>,
+    ) -> Result<Token<AzureJwtClaims>, AuthErr> {
         let aud = &token.claims.aud;
 
         if *aud == self.app_key {
@@ -257,14 +268,14 @@ pub struct AzureJwtClaims {
     /// does not match.
     pub aud: String,
 
-    /// The application ID of the client using the token. The application can 
-    /// act as itself or on behalf of a user. The application ID typically 
-    /// represents an application object, but it can also represent a service 
+    /// The application ID of the client using the token. The application can
+    /// act as itself or on behalf of a user. The application ID typically
+    /// represents an application object, but it can also represent a service
     /// principal object in Azure AD.
     pub azp: Option<String>,
 
-    /// Indicates how the client was authenticated. For a public client, the 
-    /// value is "0". If client ID and client secret are used, the value is "1". 
+    /// Indicates how the client was authenticated. For a public client, the
+    /// value is "0". If client ID and client secret are used, the value is "1".
     /// If a client certificate was used for authentication, the value is "2".
     pub azpacr: Option<String>,
 
@@ -350,9 +361,9 @@ pub struct AzureJwtClaims {
     /// The set of roles that were assigned to the user who is logging in.
     pub roles: Option<Vec<String>>,
 
-    /// The set of scopes exposed by your application for which the client 
-    /// application has requested (and received) consent. Your app should verify 
-    /// that these scopes are valid ones exposed by your app, and make authorization 
+    /// The set of scopes exposed by your application for which the client
+    /// application has requested (and received) consent. Your app should verify
+    /// that these scopes are valid ones exposed by your app, and make authorization
     /// decisions based on the value of these scopes. Only included for user tokens.
     pub scp: Option<String>,
 
@@ -403,46 +414,47 @@ struct OpenIdResponse {
     jwks_uri: String,
 }
 
-type Token<'de, T: Serialize + Deserialize<'de>> = jwt::TokenData<T>;
+type Token<T> = jwt::TokenData<T>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const PUBLIC_KEY_TEST: &str = "\
-MIIBCgKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTLUTv4\
-l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2VrUyW\
-yj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8HoGfG\
-/AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBIMc4l\
-QzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/by2h\
-3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQAB";
+                                   MIIBCgKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTLUTv4\
+                                   l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2VrUyW\
+                                   yj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8HoGfG\
+                                   /AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBIMc4l\
+                                   QzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/by2h\
+                                   3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQAB";
 
-    const PRIVATE_KEY_TEST: &str = "\
-MIIEpAIBAAKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTL\
-UTv4l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2V\
-rUyWyj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8H\
-oGfG/AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBI\
-Mc4lQzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/\
-by2h3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQABAoIBAHREk0I0O9DvECKd\
-WUpAmF3mY7oY9PNQiu44Yaf+AoSuyRpRUGTMIgc3u3eivOE8ALX0BmYUO5JtuRNZ\
-Dpvt4SAwqCnVUinIf6C+eH/wSurCpapSM0BAHp4aOA7igptyOMgMPYBHNA1e9A7j\
-E0dCxKWMl3DSWNyjQTk4zeRGEAEfbNjHrq6YCtjHSZSLmWiG80hnfnYos9hOr5Jn\
-LnyS7ZmFE/5P3XVrxLc/tQ5zum0R4cbrgzHiQP5RgfxGJaEi7XcgherCCOgurJSS\
-bYH29Gz8u5fFbS+Yg8s+OiCss3cs1rSgJ9/eHZuzGEdUZVARH6hVMjSuwvqVTFaE\
-8AgtleECgYEA+uLMn4kNqHlJS2A5uAnCkj90ZxEtNm3E8hAxUrhssktY5XSOAPBl\
-xyf5RuRGIImGtUVIr4HuJSa5TX48n3Vdt9MYCprO/iYl6moNRSPt5qowIIOJmIjY\
-2mqPDfDt/zw+fcDD3lmCJrFlzcnh0uea1CohxEbQnL3cypeLt+WbU6kCgYEAzSp1\
-9m1ajieFkqgoB0YTpt/OroDx38vvI5unInJlEeOjQ+oIAQdN2wpxBvTrRorMU6P0\
-7mFUbt1j+Co6CbNiw+X8HcCaqYLR5clbJOOWNR36PuzOpQLkfK8woupBxzW9B8gZ\
-mY8rB1mbJ+/WTPrEJy6YGmIEBkWylQ2VpW8O4O0CgYEApdbvvfFBlwD9YxbrcGz7\
-MeNCFbMz+MucqQntIKoKJ91ImPxvtc0y6e/Rhnv0oyNlaUOwJVu0yNgNG117w0g4\
-t/+Q38mvVC5xV7/cn7x9UMFk6MkqVir3dYGEqIl/OP1grY2Tq9HtB5iyG9L8NIam\
-QOLMyUqqMUILxdthHyFmiGkCgYEAn9+PjpjGMPHxL0gj8Q8VbzsFtou6b1deIRRA\
-2CHmSltltR1gYVTMwXxQeUhPMmgkMqUXzs4/WijgpthY44hK1TaZEKIuoxrS70nJ\
-4WQLf5a9k1065fDsFZD6yGjdGxvwEmlGMZgTwqV7t1I4X0Ilqhav5hcs5apYL7gn\
-PYPeRz0CgYALHCj/Ji8XSsDoF/MhVhnGdIs2P99NNdmo3R2Pv0CuZbDKMU559LJH\
-UvrKS8WkuWRDuKrz1W/EQKApFjDGpdqToZqriUFQzwy7mR3ayIiogzNtHcvbDHx8\
-oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
+    const PRIVATE_KEY_TEST: &str =
+        "\
+         MIIEpAIBAAKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTL\
+         UTv4l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2V\
+         rUyWyj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8H\
+         oGfG/AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBI\
+         Mc4lQzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/\
+         by2h3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQABAoIBAHREk0I0O9DvECKd\
+         WUpAmF3mY7oY9PNQiu44Yaf+AoSuyRpRUGTMIgc3u3eivOE8ALX0BmYUO5JtuRNZ\
+         Dpvt4SAwqCnVUinIf6C+eH/wSurCpapSM0BAHp4aOA7igptyOMgMPYBHNA1e9A7j\
+         E0dCxKWMl3DSWNyjQTk4zeRGEAEfbNjHrq6YCtjHSZSLmWiG80hnfnYos9hOr5Jn\
+         LnyS7ZmFE/5P3XVrxLc/tQ5zum0R4cbrgzHiQP5RgfxGJaEi7XcgherCCOgurJSS\
+         bYH29Gz8u5fFbS+Yg8s+OiCss3cs1rSgJ9/eHZuzGEdUZVARH6hVMjSuwvqVTFaE\
+         8AgtleECgYEA+uLMn4kNqHlJS2A5uAnCkj90ZxEtNm3E8hAxUrhssktY5XSOAPBl\
+         xyf5RuRGIImGtUVIr4HuJSa5TX48n3Vdt9MYCprO/iYl6moNRSPt5qowIIOJmIjY\
+         2mqPDfDt/zw+fcDD3lmCJrFlzcnh0uea1CohxEbQnL3cypeLt+WbU6kCgYEAzSp1\
+         9m1ajieFkqgoB0YTpt/OroDx38vvI5unInJlEeOjQ+oIAQdN2wpxBvTrRorMU6P0\
+         7mFUbt1j+Co6CbNiw+X8HcCaqYLR5clbJOOWNR36PuzOpQLkfK8woupBxzW9B8gZ\
+         mY8rB1mbJ+/WTPrEJy6YGmIEBkWylQ2VpW8O4O0CgYEApdbvvfFBlwD9YxbrcGz7\
+         MeNCFbMz+MucqQntIKoKJ91ImPxvtc0y6e/Rhnv0oyNlaUOwJVu0yNgNG117w0g4\
+         t/+Q38mvVC5xV7/cn7x9UMFk6MkqVir3dYGEqIl/OP1grY2Tq9HtB5iyG9L8NIam\
+         QOLMyUqqMUILxdthHyFmiGkCgYEAn9+PjpjGMPHxL0gj8Q8VbzsFtou6b1deIRRA\
+         2CHmSltltR1gYVTMwXxQeUhPMmgkMqUXzs4/WijgpthY44hK1TaZEKIuoxrS70nJ\
+         4WQLf5a9k1065fDsFZD6yGjdGxvwEmlGMZgTwqV7t1I4X0Ilqhav5hcs5apYL7gn\
+         PYPeRz0CgYALHCj/Ji8XSsDoF/MhVhnGdIs2P99NNdmo3R2Pv0CuZbDKMU559LJH\
+         UvrKS8WkuWRDuKrz1W/EQKApFjDGpdqToZqriUFQzwy7mR3ayIiogzNtHcvbDHx8\
+         oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
 
     fn test_token_header() -> String {
         format!(
@@ -475,23 +487,23 @@ oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
                 "uti": "fqiBqXLPj0eQa82S-IYFAA",
                 "ver": "2.0"
             }}"#, 
-        chrono::Utc::now().timestamp() - 1000, 
-        chrono::Utc::now().timestamp() - 2000, 
+        chrono::Utc::now().timestamp() - 1000,
+        chrono::Utc::now().timestamp() - 2000,
         chrono::Utc::now().timestamp() + 1000)
     }
 
-    // We create a test token from parts here. We use the v2 token used as example 
+    // We create a test token from parts here. We use the v2 token used as example
     // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
     fn generate_test_token() -> String {
-        // jwt library expects a `*.der` key wich is a byte encoded file so 
+        // jwt library expects a `*.der` key wich is a byte encoded file so
         // we need to convert the key from base64 to their byte value to use them.
         let private_key = from_base64_to_bytearray(PRIVATE_KEY_TEST).expect("priv_key");
 
         // we need to construct the calims in a function since we need to set
         // the expiration to current time
-        let test_token_playload = test_token_claims(); 
-        let test_token_header =  test_token_header(); 
-        
+        let test_token_playload = test_token_claims();
+        let test_token_header = test_token_header();
+
         // we base64 (url-safe-base64) the header and claims and arrange
         // as a jwt payload -> header_as_base64.claims_as_base64
         let test_token = [
@@ -503,18 +515,16 @@ oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
         // we create the signature using our private key
         let signature = jwt::sign(&test_token, &private_key, jwt::Algorithm::RS256).unwrap();
 
-        
-        let public_key =  from_base64_to_bytearray(PUBLIC_KEY_TEST).expect("publ_key");
+        let public_key = from_base64_to_bytearray(PUBLIC_KEY_TEST).expect("publ_key");
 
         // we construct a complete token which looks like: header.claims.signature
         let complete_token = format!("{}.{}", test_token, signature);
-        
+
         // we verify the signature here as well to catch errors in our testing
         // code early
         let verified = jwt::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
             .expect("verified");
         assert!(verified);
-
 
         complete_token
     }
@@ -522,15 +532,17 @@ oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
     #[test]
     fn decode_token() {
         let token = generate_test_token();
-        let pub_key = include_str!("../tests/public_key.pem");
-        let pub_key = pub_key.lines().collect::<Vec<&str>>().concat();
-        //let pub_key = from_base64_to_bytearray(&pub_key).unwrap();
 
+        // we need to construct our own key object that matches on `kid` field
+        // just as it should if we used the fetched keys from microsofts servers
+        // since our validation methods converts the base64 data to bytes for us
+        // we don't need to worry about that here.
         let key = KeyPairs {
             x5t: "i6lGk3FZzxRcUb2C3nEQ7syHJlY".to_string(),
-            x5c: vec![pub_key.to_string()],
+            x5c: vec![PUBLIC_KEY_TEST.to_string()],
         };
 
+        // TODO: configure the validator to validate aud for us.
         let mut az_auth =
             AzureAuth::new_offline("6e74172b-be56-4843-9ff4-e66a39bb12e3", vec![key]).unwrap();
 
@@ -538,7 +550,7 @@ oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
     }
 
     // #[test]
-    // TODO: Refactor to make testing easier
+    // TODO: Refactor to make testing easier.
     fn decode_token_retry() {
         let token = generate_test_token();
         let key = KeyPairs {
@@ -555,7 +567,7 @@ oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
 
     #[test]
     fn refresh_rwks_uri() {
-        let az_auth = AzureAuth::new("app_secret").unwrap();
+        let _az_auth = AzureAuth::new("app_secret").unwrap();
     }
 
     #[test]
