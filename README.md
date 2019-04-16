@@ -43,7 +43,7 @@ was rejected.
 
 **You'll need:**
 
-You will need a private app_id created by Azure for your application to be able to veriify that
+You will need a private client_id created by Azure for your application to be able to veriify that
 the token is created for your application (and not anyone with a valid Azure token can log in). This is the ID this library
 needs from you to authenticate that the token vas issued for your application.
 
