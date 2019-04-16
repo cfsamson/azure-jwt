@@ -113,18 +113,27 @@ impl AzureAuth {
         })
     }
 
-    pub fn validate_token(&mut self, token: &str) -> Result<Token, AuthErr> {
-        let decoded = self.validate_token_authenticity(token)?;
+    pub fn validate_token(&mut self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
+        let validator = jwt::Validation::new(jwt::Algorithm::RS256);
+        let decoded: Token<AzureJwtClaims> = self.validate_token_authenticity(token, &validator)?;
         let decoded = self.validate_aud(decoded)?;
 
         Ok(decoded)
     }
 
-    fn validate_token_authenticity(&mut self, token: &str) -> Result<Token, AuthErr> {
+    pub fn validate_custom<T>(&mut self, token: &str, validator: &jwt::Validation) -> Result<Token<T>, AuthErr> 
+    where for<'de> T: Serialize + Deserialize<'de> 
+    {
+        let decoded: Token<T> = self.validate_token_authenticity(token, &validator)?;
+        Ok(decoded)
+    }
+
+
+    fn validate_token_authenticity<T>(&mut self, token: &str, validator: &jwt::Validation) -> Result<Token<T>, AuthErr>
+    where for<'de> T: Serialize + Deserialize<'de> {
         if !self.is_keys_valid() {
             self.refresh_pub_keys()?;
         }
-
         // does not validate the token!
         let decoded = jwt::decode_header(token).map_err(|e| AuthErr::ParseError(e.to_string()))?;
 
@@ -162,19 +171,18 @@ impl AzureAuth {
             }
         };
 
-        let algo = jwt::Validation::new(jwt::Algorithm::RS256);
 
         // the jwt library expects a byte input so we need to decode the
         // base64 data to an bytearray
         let key_as_bytes = from_base64_to_bytearray(&auth_key.x5c[0])?;
 
-        let valid: Token = jwt::decode(token, &key_as_bytes, &algo)
+        let valid: Token<T> = jwt::decode(token, &key_as_bytes, &validator)
             .map_err(|e| AuthErr::InvalidToken(e.to_string()))?;
 
         Ok(valid)
     }
 
-    fn validate_aud(&mut self, token: Token) -> Result<Token, AuthErr> {
+    fn validate_aud(&mut self, token: Token<AzureJwtClaims>) -> Result<Token<AzureJwtClaims>, AuthErr> {
         let aud = &token.claims.aud;
 
         if *aud == self.app_key {
@@ -395,7 +403,7 @@ struct OpenIdResponse {
     jwks_uri: String,
 }
 
-type Token = jwt::TokenData<AzureJwtClaims>;
+type Token<'de, T: Serialize + Deserialize<'de>> = jwt::TokenData<T>;
 
 #[cfg(test)]
 mod tests {
