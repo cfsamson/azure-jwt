@@ -2,19 +2,16 @@
 
 # A library that authenticates Azure JWT tokens.
 This library will fetch public keys from Microsoft and validate the authenticity of the Tokens and verify that they
-are issued by Azure and are not tampered with. It will also check that this token is issued to the right audience matching the `aud` Claim of the token with
-the client_id you got when you registered your app in Azure. It will check the expiration: `exp`, the not-before timestamp `nbf` and issued-at `iat`. 
-If either of these fail, the token is invalid.
+are issued by Azure and are not tampered with. See further down for details on what this library validates and
+whay you need to take care of yourself.
 
-This token will send requests to the Microsoft api to get updated keys. The default is to expire the stored keys after
-24 hours and fetch new ones. There is also a default Retry fallback where an invalid key match wil trigger _one_ refresh of
-the keys (limited to once an hour), just in case the set default is badly synced with the rotation of the Microsoft public
-keys or Microsoft decides to rotate the keys immideately for some reason. Both of these settings can be configured.
-
+This library will send requests to the Microsoft api to get updated keys. The default is to expire the stored keys after
+24 hours and fetch new ones since that correspond with the normal key rotation scheme. There is also a default retry fallback 
+where key that doesn't match wil trigger _one_ refresh of the keys (limited to once an hour), just in case the set default is 
+badly synced with the rotation of the Microsoft public keys or Microsoft decides to rotate the keys immideately for some reason. 
+Both of these settings can be configured.
 
 ## Example
-
-# Example
 
 ```rust
 
@@ -55,8 +52,8 @@ You get a verified token parsed for you in return.
 **You still must take care of:**
 
 1. Validating that the user has the right access to your system yourself
-2. Validating that the token hasn't expired
-3. Validating that the tokens `nbf` (Not Before) is valid
-4. Validating any other information that is important for your use case
+2. Validating any other information that is important for your use case
+3. If you as for more information about the user than what is standard you will need
+to make a struct that maps to all the fields in the token.
 
 For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
