@@ -526,7 +526,7 @@ mod tests {
         let private_key = from_base64_to_bytearray(PRIVATE_KEY_TEST).expect("priv_key");
 
         // we need to construct the calims in a function since we need to set
-        // the expiration to current time
+        // the expiration relative to current time
         let test_token_playload = test_token_claims();
         let test_token_header = test_token_header();
 
