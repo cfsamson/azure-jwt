@@ -140,7 +140,7 @@ impl AzureAuth {
     /// 
     /// # Example
     /// 
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use azure_oauth_rs::*;
     /// use jsonwebtoken::{Validation, Token};
     /// use serde::{Seralize, Deserialize};
@@ -156,7 +156,7 @@ impl AzureAuth {
     /// 
     /// let auth = AzureAuth::new(my_client_id_from_azure).unwrap();
     /// 
-    /// let valid_token: Token<MyClaims>  = auth.validate(some_token, &validator).unwrap();
+    /// let valid_token: Token<MyClaims>  = auth.validate_custom(some_token, &validator).unwrap();
     /// ```
     /// 
     /// You'll need to pull in `jsonwebtoken` crate to 
