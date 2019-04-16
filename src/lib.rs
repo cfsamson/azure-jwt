@@ -568,7 +568,6 @@ mod tests {
             x5c: vec![PUBLIC_KEY_TEST.to_string()],
         };
 
-        // TODO: configure the validator to validate aud for us.
         let mut az_auth =
             AzureAuth::new_offline("6e74172b-be56-4843-9ff4-e66a39bb12e3", vec![key]).unwrap();
 
