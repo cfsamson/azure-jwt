@@ -35,9 +35,9 @@
 use base64;
 use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
+use openssl::rsa::Rsa;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
-use openssl::rsa::Rsa;
 
 mod error;
 pub use error::AuthErr;
@@ -68,11 +68,11 @@ const AZ_OPENID_URL: &str =
 pub struct AzureAuth {
     aud_to_val: String,
     jwks_uri: String,
-    public_keys: Option<Vec<KeyPairs>>,
+    public_keys: Option<Vec<Jwk>>,
     last_refresh: Option<NaiveDateTime>,
     exp_hours: i64,
     retry_counter: u32,
-    retry_option: bool,
+    retry_enabled: bool,
     is_offline: bool,
 }
 
@@ -93,21 +93,22 @@ impl AzureAuth {
             last_refresh: None,
             exp_hours: 24,
             retry_counter: 0,
-            retry_option: true,
+            retry_enabled: true,
             is_offline: false,
         })
     }
 
-    /// If you want to handle updating the public keys yourself
-    fn new_offline(aud: impl Into<String>, public_keys: Vec<KeyPairs>) -> Result<Self, AuthErr> {
+    /// Does not call the Microsoft openid configuration endpoint or fetches the JWK set.
+    /// Use this if you want to handle updating the public keys yourself
+    fn new_offline(aud: impl Into<String>, public_keys: Vec<Jwk>) -> Result<Self, AuthErr> {
         Ok(AzureAuth {
             aud_to_val: aud.into(),
-            jwks_uri: AzureAuth::get_jwks_uri()?,
+            jwks_uri: String::new(),
             public_keys: Some(public_keys),
             last_refresh: Some(Local::now().naive_local()),
             exp_hours: 24,
             retry_counter: 0,
-            retry_option: true,
+            retry_enabled: true,
             is_offline: true,
         })
     }
@@ -182,19 +183,9 @@ impl AzureAuth {
             None => return Err(AuthErr::Other("Internal err. No public keys found.".into())),
             Some(keys) => match &decoded.kid {
                 None => return Err(AuthErr::Other("No `kid` in token.".into())),
-                Some(kid) => keys.iter().find(|k| k.x5t == *kid),
+                Some(kid) => keys.iter().find(|k| k.kid == *kid),
             },
         };
-
-        // The token should pr specification use RS256, if it's not it has been
-        // tampered with or the header is wrong. In that case we invalidate the
-        // token.
-        // NOTE: needs to be updated if Microsoft changes their spec
-        if decoded.alg != jwt::Algorithm::RS256 {
-            return Err(AuthErr::Other(
-                "Invalid token. Invalid algorithm in header.".into(),
-            ));
-        }
 
         let auth_key = match key {
             None => {
@@ -218,8 +209,6 @@ impl AzureAuth {
             }
         };
 
-        println!("{:?}", key);
-
         // the jwt library expects a byte input so we need to decode the
         // base64 data to an bytearray
         let auth_key_bytes = auth_key.get_public_key()?;
@@ -231,7 +220,7 @@ impl AzureAuth {
     }
 
     fn should_retry(&mut self) -> bool {
-        if self.is_offline {
+        if self.is_offline || !self.retry_enabled {
             return false;
         }
 
@@ -250,7 +239,7 @@ impl AzureAuth {
     }
 
     pub fn set_no_retry(&mut self) {
-        self.retry_option = false;
+        self.retry_enabled = false;
     }
 
     fn is_keys_valid(&self) -> bool {
@@ -276,13 +265,13 @@ impl AzureAuth {
     fn get_jwks_uri() -> Result<String, AuthErr> {
         let mut resp: Response = reqwest::get(AZ_OPENID_URL)?;
         let resp: OpenIdResponse = resp.json()?;
-    
+
         Ok(resp.jwks_uri)
     }
 
     /// If you use the "offline" variant you'll need this to update the public keys, if you don't
     /// use the offline version you probably don't want to change these unless you're testing.
-    pub fn set_public_keys(&mut self, pub_keys: Vec<KeyPairs>) {
+    pub fn set_public_keys(&mut self, pub_keys: Vec<Jwk>) {
         self.last_refresh = Some(Local::now().naive_local());
         self.public_keys = Some(pub_keys);
     }
@@ -430,37 +419,35 @@ pub struct AzureJwtClaims {
     pub ver: String,
 }
 
-
 /// URL-safe character set without padding that allows trailing bits,
 /// which appear in some JWT implementations.
 fn from_base64_to_bytearray(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
-    
-    let decoded = base64::decode_config(b64_str, base64::URL_SAFE_NO_PAD.decode_allow_trailing_bits(true))
+    let b64_config = base64::URL_SAFE_NO_PAD.decode_allow_trailing_bits(true);
+
+    let decoded = base64::decode_config(b64_str, b64_config)
         .map_err(|e| AuthErr::ParseError(e.to_string()))?;
     Ok(decoded)
 }
 
 fn from_base64_to_bytearray_non_url(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
-    
     let decoded = base64::decode_config(b64_str, base64::STANDARD)
         .map_err(|e| AuthErr::ParseError(e.to_string()))?;
     Ok(decoded)
 }
 
-
 #[derive(Debug, Deserialize)]
 struct Keys {
-    keys: Vec<KeyPairs>,
+    keys: Vec<Jwk>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct KeyPairs {
-    pub x5t: String,
+pub struct Jwk {
+    pub kid: String,
     pub n: String,
     pub e: String,
 }
 
-impl KeyPairs {
+impl Jwk {
     pub fn get_public_key(&self) -> Result<Vec<u8>, AuthErr> {
         let n = from_base64_to_bytearray(&self.n)?;
         let e = from_base64_to_bytearray(&self.e)?;
@@ -469,9 +456,7 @@ impl KeyPairs {
 
         let key = Rsa::from_public_components(n, e)?;
         let key_bytes = key.public_key_to_der_pkcs1()?;
-        
         Ok(key_bytes)
-
     }
 }
 
@@ -486,40 +471,35 @@ type Token<T> = jwt::TokenData<T>;
 mod tests {
     use super::*;
 
-    const PUBLIC_KEY_TEST: &str =
-        "MIIBCgKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTLUTv4\
-         l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2VrUyW\
-         yj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8HoGfG\
-         /AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBIMc4l\
-         QzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/by2h\
-         3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQAB";
+    const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+    const PUBLIC_KEY_E: &str = "AQAB";
 
     const PRIVATE_KEY_TEST: &str =
-        "MIIEpAIBAAKCAQEAyRE6rHuNR0QbHO3H3Kt2pOKGVhQqGZXInOduQNxXzuKlvQTL\
-         UTv4l4sggh5/CYYi/cvI+SXVT9kPWSKXxJXBXd/4LkvcPuUakBoAkfh+eiFVMh2V\
-         rUyWyj3MFl0HTVF9KwRXLAcwkREiS3npThHRyIxuy0ZMeZfxVL5arMhw1SRELB8H\
-         oGfG/AtH89BIE9jDBHZ9dLelK9a184zAf8LwoPLxvJb3Il5nncqPcSfKDDodMFBI\
-         Mc4lQzDKL5gvmiXLXB1AGLm8KBjfE8s3L5xqi+yUod+j8MtvIj812dkS4QMiRVN/\
-         by2h3ZY8LYVGrqZXZTcgn2ujn8uKjXLZVD5TdQIDAQABAoIBAHREk0I0O9DvECKd\
-         WUpAmF3mY7oY9PNQiu44Yaf+AoSuyRpRUGTMIgc3u3eivOE8ALX0BmYUO5JtuRNZ\
-         Dpvt4SAwqCnVUinIf6C+eH/wSurCpapSM0BAHp4aOA7igptyOMgMPYBHNA1e9A7j\
-         E0dCxKWMl3DSWNyjQTk4zeRGEAEfbNjHrq6YCtjHSZSLmWiG80hnfnYos9hOr5Jn\
-         LnyS7ZmFE/5P3XVrxLc/tQ5zum0R4cbrgzHiQP5RgfxGJaEi7XcgherCCOgurJSS\
-         bYH29Gz8u5fFbS+Yg8s+OiCss3cs1rSgJ9/eHZuzGEdUZVARH6hVMjSuwvqVTFaE\
-         8AgtleECgYEA+uLMn4kNqHlJS2A5uAnCkj90ZxEtNm3E8hAxUrhssktY5XSOAPBl\
-         xyf5RuRGIImGtUVIr4HuJSa5TX48n3Vdt9MYCprO/iYl6moNRSPt5qowIIOJmIjY\
-         2mqPDfDt/zw+fcDD3lmCJrFlzcnh0uea1CohxEbQnL3cypeLt+WbU6kCgYEAzSp1\
-         9m1ajieFkqgoB0YTpt/OroDx38vvI5unInJlEeOjQ+oIAQdN2wpxBvTrRorMU6P0\
-         7mFUbt1j+Co6CbNiw+X8HcCaqYLR5clbJOOWNR36PuzOpQLkfK8woupBxzW9B8gZ\
-         mY8rB1mbJ+/WTPrEJy6YGmIEBkWylQ2VpW8O4O0CgYEApdbvvfFBlwD9YxbrcGz7\
-         MeNCFbMz+MucqQntIKoKJ91ImPxvtc0y6e/Rhnv0oyNlaUOwJVu0yNgNG117w0g4\
-         t/+Q38mvVC5xV7/cn7x9UMFk6MkqVir3dYGEqIl/OP1grY2Tq9HtB5iyG9L8NIam\
-         QOLMyUqqMUILxdthHyFmiGkCgYEAn9+PjpjGMPHxL0gj8Q8VbzsFtou6b1deIRRA\
-         2CHmSltltR1gYVTMwXxQeUhPMmgkMqUXzs4/WijgpthY44hK1TaZEKIuoxrS70nJ\
-         4WQLf5a9k1065fDsFZD6yGjdGxvwEmlGMZgTwqV7t1I4X0Ilqhav5hcs5apYL7gn\
-         PYPeRz0CgYALHCj/Ji8XSsDoF/MhVhnGdIs2P99NNdmo3R2Pv0CuZbDKMU559LJH\
-         UvrKS8WkuWRDuKrz1W/EQKApFjDGpdqToZqriUFQzwy7mR3ayIiogzNtHcvbDHx8\
-         oFnGY0OFksX/ye0/XGpy2SFxYRwGU98HPYeBvAQQrVjdkzfy7BmXQQ==";
+"MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/0tyClUGD9ZBv7kME\
+dmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr/wa0RGyd3o0KVCKaynFPVZ\
+WBfn9YIB3muT/8i/Qahw/Zz/UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJT\
+mr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA+ACxv\
+O18UnFIAQFyn5NLe424d5InA1aO8MpM/Lagxpw2luwpvaBmDO5tHqFOO+6lGNpD1\
+IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQIDAQABAoIBAQC982Yrmi7q7IHC\
+/qWglUpzKhLGe2PAWVVaZ5rfnIoNs8K3fU8QcUKumFGAMsjpeM1pnaXSeExFmGsM\
+Y+Ox1YwSUA81DYxuH6Ned86YDqpgIDr5M0Ba7JmDOLWXoIR8byB19oMOuhjBAW+P\
+EKlb0Z2a1f1Gt3J8oAxWq8PDsShHRdjyesVS36QZpIgjZskcNws/zqqqDRrLWuLm\
+Avk6E+tMD6sqo9xpzEqHF7rmwtt5yAtM1oZdWoEg2O+wZH5DBX2GhLlNZi/8sIiF\
+Mo+jouQn+l6Qc4G65vnnoZ+yEuf9fTJPnTHBFMViUcmTPsdbD4eLfrRXwAE9GYrv\
+R/RVusABAoGBAPgsQ4kAChpzU2aP21NQV1XTBW+eoHVbcJoYuOlmwB6x5o8lDUz/\
+EQVVYZavfNY1AjhEkfltCDjm1GHyWofrtGKTy7DHSZwPw5CxuqDtaiC6PMpFEu+O\
+xa09s7IZxpgInlrhY5JskOkH495BQ0xIU8UDxuP6sdtVNeQmWGjKG7kBAoGBAPPp\
+Nid4QEV4XleyAXT/JQGugdpa7TirWOEATNo10YPPqz7GphRhucT0ipNKMi/0XKh3\
+U0IC7XxjUvtE2LP9TVGAcV/Wzi4EYp1fziFuF9QcUds2tJ60SpfgIQrmVcF1zHxn\
+4/mSABoIyFxZSb4Tq9f+KXPAO5/l0NjgrVwk6gVZAoGAbMVZxE4UH4u0XhtnEZkA\
+7kjS9R0dTtKJA8EaKpIyWkG2v76JmdmhaCkH4LeBi5EoK+lB4YR8OhRRuawzKaeR\
+JDOK7ywpgxEVsfFzzty/yyBVTIIBzqVQ1qFYhRLvC+ubHFH1BlQ3HyuqH9uS13hL\
+3unM3lceZPdv61MzJJqQlAECgYAWg0MFV5sPDnIexAZQZzBiPFot7lCQ93fHpMBz\
+L557/RIARFOV9AMyg6O6vpFtTa+zuPfNUvnajkxddthNnKajTCiqwOfc5Xi4r9wV\
+x9SZNlfz1NPNBjUQWZaTK/lkVtwd63TmVyx9OqxLoc4lpikpUYM/9NFMC+k/61T0\
++U9EWQKBgCdZV3yxwkz3pi6/E40EXfUsj8HQG/UtFJGeUNQiysBrxTmtmwLyvJeC\
+GruG96j1JcehpbcWKV+ObyMQuk65dM94uM7Wa+2NCA/MvorVcU7wdPbq7/eczZU4\
+xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
     fn test_token_header() -> String {
         format!(
@@ -578,9 +558,15 @@ mod tests {
         .join(".");
 
         // we create the signature using our private key
-        let signature = jwt::sign(&test_token, &private_key, jwt::Algorithm::RS256).unwrap();
+        let signature = jwt::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
 
-        let public_key = from_base64_to_bytearray_non_url(PUBLIC_KEY_TEST).expect("publ_key");
+        let public_key = Jwk {
+            kid: "".to_string(),
+            n: PUBLIC_KEY_N.to_string(),
+            e: PUBLIC_KEY_E.to_string(),
+        };
+
+        let public_key = public_key.get_public_key().expect("Get public key.");
 
         // we construct a complete token which looks like: header.claims.signature
         let complete_token = format!("{}.{}", test_token, signature);
@@ -594,7 +580,7 @@ mod tests {
         complete_token
     }
 
-    //#[test]
+    #[test]
     fn decode_token() {
         let token = generate_test_token();
 
@@ -602,12 +588,12 @@ mod tests {
         // just as it should if we used the fetched keys from microsofts servers
         // since our validation methods converts the base64 data to bytes for us
         // we don't need to worry about that here.
-        let from_std = base64::decode_config(PUBLIC_KEY_TEST, base64::STANDARD).unwrap();
-        let to_url_safe = base64::encode_config(&from_std, base64::URL_SAFE);
-        let key = KeyPairs {
-            x5t: "i6lGk3FZzxRcUb2C3nEQ7syHJlY".to_string(),
-            n: to_url_safe,
-            e: String::new(),
+        // let from_std = base64::decode_config(PUBLIC_KEY_TEST, base64::STANDARD).unwrap();
+        // let to_url_safe = base64::encode_config(&from_std, base64::URL_SAFE);
+        let key = Jwk {
+            kid: "i6lGk3FZzxRcUb2C3nEQ7syHJlY".to_string(),
+            n: PUBLIC_KEY_N.to_string(),
+            e: PUBLIC_KEY_E.to_string(),
         };
 
         let mut az_auth =
@@ -616,20 +602,7 @@ mod tests {
         az_auth.validate_token(&token).unwrap();
     }
 
-    // #[test]
-    // TODO: Refactor to make testing easier.
-    // fn decode_token_retry() {
-    //     let token = generate_test_token();
-    //     let key = KeyPairs {
-    //         x5t: "Xey1".to_string(),
-    //         x5c: vec!["azure_auth_test".to_string()],
-    //     };
-
-    //     let mut az_auth = AzureAuth::new("6e74172b-be56-4843-9ff4-e66a39bb12e3").unwrap();
-    //     az_auth.public_keys = Some(vec![key]);
-    //     az_auth.last_refresh = Some(Local::now().naive_local() - Duration::hours(2));
-    //     az_auth.validate_token(&token).unwrap();
-    // }
+    // TODO: we need a test for the retry operation.
 
     #[test]
     fn refresh_rwks_uri() {

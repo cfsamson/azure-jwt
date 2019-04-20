@@ -1,10 +1,13 @@
 use azure_oauth_rs::*;
 use jsonwebtoken as jsw;
 
-const TOKEN: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6IkhCeGw5bUFlNmd4YXZDa2NvT1UyVEhzRE5hMCJ9.eyJhdWQiOiIzMjE2NmMyNS01ZTMxLTRjZmMtYTI5Yi0wNGQwZGZkYjAxOWEiLCJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vMzYxNTU5ZjYtN2M3OC00MzhmLWIyODQtYzdhMmU0OTI4MzlhL3YyLjAiLCJpYXQiOjE1NTU3MTQ1NzIsIm5iZiI6MTU1NTcxNDU3MiwiZXhwIjoxNTU1NzE4NDcyLCJhaW8iOiJBVFFBeS84TEFBQUFDZmpldXlkWDVKTDcwb0tGemsxYXZzWVZ6TlgyNjFOSkZxRS9lYnFKU0NWZE9ramxrNlF6ck1qZGNBN2FxNVhkIiwibmFtZSI6IkNhcmwgRnJlZHJpayBTYW1zb24iLCJub25jZSI6Ijc1MjkwOTY5LTcyNWQtNDM5Zi1hZWIxLTQ4ZWQ3NTc2YzkzMyIsIm9pZCI6IjU4NmE5MDVkLTBkNGEtNDk5NC1hNTlhLTU5N2ZjOWE1NDg2MyIsInByZWZlcnJlZF91c2VybmFtZSI6ImNmQHNhbXNvbi5ubyIsInN1YiI6ImxLTkVzMXJLcjRLbzl0b096czFrTXQ1SDYzR2NxZDFaZ3V0bHg3M1RxbDQiLCJ0aWQiOiIzNjE1NTlmNi03Yzc4LTQzOGYtYjI4NC1jN2EyZTQ5MjgzOWEiLCJ1dGkiOiJQX0E5VnpMdnZFU2RNako3UVVzQkFBIiwidmVyIjoiMi4wIn0.uEzZNShhweN5RyztXQYyO4q37LLfTExYoMQ63Flti0QpLEeTsjwm5W69ARZGITntPGwuCP-PMamE5ZkUW8twzo_K3yZrnNKs5y4exlPILyZucqJou36VYMqkbHDR3QmpgXtQgIowMVwjqLZo3NUiqy5GxY1X25DY8QU-ixjS5gfq6KOcjTr4ZJELLXiaNBvDNnsSQQkjrJhuPUIul9zqsIjT0stUud9IOS9sdMiLvIvn6_AEpx1L1F1El6Ku8ZrNXwJB15ds4xyRMj3ZJejFPK_mcvkhz-paxO4jSMvJnG-Or2EQQtESVwqtvhW0RQiVs4ZUmvBwrGpHiIx0Jwc4zg";
- #[test]
+const TOKEN: &str = "a_valid_azure_token__Note_that_the_keys_will_expire_so_this_test_needs_fresh_tokens_to_run";
+
+// Thos integration test is supposed to be run when you want to test against a valid azure token.
+// TODO: See if we can redirect this test to microsioft demo/test api.
+ //#[test]
     fn decode_token() {
-        let mut az_auth = AzureAuth::new("32166c25-5e31-4cfc-a29b-04d0dfdb019a").unwrap();
+        let mut az_auth = AzureAuth::new("an_active_client_id").unwrap();
         let header: jsw::TokenData<AzureJwtClaims> = jsw::dangerous_unsafe_decode(TOKEN).unwrap();
         println!("{:?}", header);
         az_auth.validate_token(TOKEN).unwrap();
