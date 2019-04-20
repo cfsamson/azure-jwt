@@ -22,9 +22,22 @@ let mut az_auth = AzureAuth::new(client_id).unwrap();
 
 let decoded = az_auth.validate_token(TEST_TOKEN)?;
 
-// get user, or perform additional validation here
-
 ```
+
+## Note
+
+There is another library: [alcoholic_jwt](https://github.com/tazjin/alcoholic_jwt]) that provides
+much of the same functionality but on a slightly lower level allowing for using it with other providers
+as well. If you need more control then take a look at that library.
+
+## Performance
+
+When you create a new `AzureAuth` instance in its default configuration it will trigger two calls
+to microsoft endpoints (one to get the open connect metadata to get the current jwks_uri and one to 
+fetch the jwk sets). You should create these objects with care and prefer using a reference to one
+instance. If you're using it on a webserver you should avoid creating a new instance on every connection
+and rather instanciate one on server start and use a mutex or channels to do validation. Once the keys 
+are loaded the operations should be very fast. Benchmarks are however needed to confirm this.
 
 ## Security
 
@@ -57,3 +70,7 @@ You get a verified token parsed for you in return.
 to make a struct that maps to all the fields in the token.
 
 For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+
+## Todo
+- [ ] Use alcoholic_jwk as basis for parsing and validating tokens and keys
+- [ ] See if it's possible to refactor the code to avoid needing a mutable reference to do validation

@@ -32,6 +32,10 @@
 //! and you will need to authenticate that the user has the right access to your system.
 //!
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+//! 
+//! # Note
+//! There is another library providing the same functionality but on a slightly lower level. If you 
+//! reauire more control then have a look at: https://github.com/tazjin/alcoholic_jwt
 use base64;
 use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
