@@ -19,7 +19,19 @@ reqwest = "0.9.14"
 serde = {version="1.0.90", features=["derive"]}
 chrono = "0.4.6"
 base64 = "0.10.1"
-openssl = "0.10.20"
+
+[target.'cfg(not(vendored))'.dependencies]
+openssl = {version="0.10.20"}
+
+[target.'cfg(vendored)'.dependencies]
+openssl = {version="0.10.20", features=["vendored"]}
+
+[target.'cfg(windows)'.dependencies]
+openssl-probe = "0.1.2"
+
+[features]
+vendored = []
+
 
 [dev-dependencies]
 criterion = "0.1.2"

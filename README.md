@@ -31,6 +31,23 @@ let decoded = az_auth.validate_token(TEST_TOKEN)?;
 
 ```
 
+# OpenSSL
+
+This library depends on the [openssl crate](https://docs.rs/openssl/0.10.20/openssl/).
+There are two options:
+1. If you have an installation of OpenSSL installed you can most likely compile this library with
+its default settings.
+2. If you don't have OpenSSL libraries installed you can use the `vendored` feature that will in turn
+compile the OpenSSL with its `vendored` feature enabled. This will compile and statically link 
+OpenSSL to the library. You will need a C compiler, Make and Perl installed for it to build.
+
+You'll find  more information here: https://docs.rs/openssl/0.10.20/openssl/
+
+# Windows
+
+On windows, the `vendored` feature requires a small workaround to find the systems root certificates
+so we will add an additional dependency to fix that. For more information see: https://github.com/alexcrichton/openssl-probe 
+
 ## Note
 
 There is another library: [alcoholic_jwt](https://github.com/tazjin/alcoholic_jwt]) that provides
