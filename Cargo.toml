@@ -1,5 +1,5 @@
 [package]
-name = "azure_oauth_rs"
+name = "azure_jwt"
 version = "0.1.0"
 authors = ["Carl Fredrik Samson <cf@samson.no>"]
 edition = "2018"
@@ -11,3 +11,10 @@ serde = {version="1.0.90", features=["derive"]}
 chrono = "0.4.6"
 base64 = "0.10.1"
 openssl = "0.10.20"
+
+[dev-dependencies]
+criterion = "0.1.2"
+
+[[bench]]
+name = "validation"
+harness = false

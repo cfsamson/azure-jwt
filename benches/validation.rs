@@ -1,6 +1,7 @@
 use azure_jwt::*;
 use base64;
 use jsonwebtoken as jwt;
+use criterion::{Criterion, criterion_group, criterion_main, black_box};
 
 const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
 const PUBLIC_KEY_E: &str = "AQAB";
@@ -104,8 +105,7 @@ fn generate_test_token() -> String {
     complete_token
 }
 
-#[test]
-fn decode_token() {
+fn decode_token(c: &mut Criterion) {
     let token = generate_test_token();
     // we need to construct our own key object that matches on `kid` field
     // just as it should if we used the fetched keys from microsofts servers.
@@ -119,5 +119,8 @@ fn decode_token() {
     // We manually overwrite the keys so we use the ones we have for testing
     az_auth.set_public_keys(vec![key]);
 
-    az_auth.validate_token(&token).expect("validated");
+    c.bench_function("validate_token", |b| b.iter(|| black_box(az_auth.validate_token(&token).expect("validated"))));
 }
+
+criterion_group!(benches, decode_token);
+criterion_main!(benches);

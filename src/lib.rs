@@ -33,6 +33,47 @@
 //!
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 //! 
+//! # Example
+//! 
+//! ```rust
+//! use azure_jwt::*;
+//! # let token = "ewogICAgICAgICAgICAgICAgInR5cCI6ICJKV1QiLAogICAgICAgICAgICAgICAgImFsZyI6ICJSUzI1NiIsCiAgICAgICAgICAgICAgICAia2lkIjogImk2bEdrM0ZaenhSY1ViMkMzbkVRN3N5SEpsWSIKICAgICAgICAgICAgfQ==.ewogICAgICAgICAgICAgICAgImF1ZCI6ICI2ZTc0MTcyYi1iZTU2LTQ4NDMtOWZmNC1lNjZhMzliYjEyZTMiLAogICAgICAgICAgICAgICAgImlzcyI6ICJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3L3YyLjAiLAogICAgICAgICAgICAgICAgImlhdCI6IDE1NTU4NjczMzcsCiAgICAgICAgICAgICAgICAibmJmIjogMTU1NTg2NjMzNywKICAgICAgICAgICAgICAgICJleHAiOiAxNTU1ODY5MzM3LAogICAgICAgICAgICAgICAgImFpbyI6ICJBWFFBaS84SUFBQUF0QWFaTG8zQ2hNaWY2S09udHRSQjdlQnE0L0RjY1F6amNKR3hQWXkvQzNqRGFOR3hYZDZ3TklJVkdSZ2hOUm53SjFsT2NBbk5aY2p2a295ckZ4Q3R0djMzMTQwUmlvT0ZKNGJDQ0dWdW9DYWcxdU9UVDIyMjIyZ0h3TFBZUS91Zjc5UVgrMEtJaWpkcm1wNjlSY3R6bVE9PSIsCiAgICAgICAgICAgICAgICAiYXpwIjogIjZlNzQxNzJiLWJlNTYtNDg0My05ZmY0LWU2NmEzOWJiMTJlMyIsCiAgICAgICAgICAgICAgICAibmFtZSI6ICJBYmUgTGluY29sbiIsCiAgICAgICAgICAgICAgICAiYXpwYWNyIjogIjAiLAogICAgICAgICAgICAgICAgIm9pZCI6ICI2OTAyMjJiZS1mZjFhLTRkNTYtYWJkMS03ZTRmN2QzOGU0NzQiLAogICAgICAgICAgICAgICAgInByZWZlcnJlZF91c2VybmFtZSI6ICJhYmVsaUBtaWNyb3NvZnQuY29tIiwKICAgICAgICAgICAgICAgICJyaCI6ICJJIiwKICAgICAgICAgICAgICAgICJzY3AiOiAiYWNjZXNzX2FzX3VzZXIiLAogICAgICAgICAgICAgICAgInN1YiI6ICJIS1pwZmFIeVdhZGVPb3VZbGl0anJJLUtmZlRtMjIyWDVyclYzeERxZktRIiwKICAgICAgICAgICAgICAgICJ0aWQiOiAiNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3IiwKICAgICAgICAgICAgICAgICJ1dGkiOiAiZnFpQnFYTFBqMGVRYTgyUy1JWUZBQSIsCiAgICAgICAgICAgICAgICAidmVyIjogIjIuMCIKICAgICAgICAgICAgfQ==.Ng53HYzt5MfRemrB6Df0TfaJV0sQdydPJT9F5qJG3cSG7_h4mjDdT-8KWi70PZAJDmQRgnt5QF_BdYVrlRj7e_gdaMPOYgPyI3GtlDkHSzXx0TcHQc0Z085Wq6ZT5ZzRO2_130v2RM6fmHmELYRK9LkRCVoWCfc3GFNhzcwGE25uBFZxFcK7bSiGaD-VtyUdK-oQ3U3jUd836EDyUDoU39oYo33cOO2GQNF1Wy81qYuMarOFIwV_kzePxFAlkRWPWl76RFRPlLh3l2hl9Z0-haKhFHhsINIJ0qo_ZWlnzBz6a4p-dBW8D98l9cBfoIk_dtTdeoRhlu0ASluuhvCeJg";
+//! # let n: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+//! # let e: &str = "AQAB";
+//! 
+//! # let key = Jwk {
+//! #         kid: "i6lGk3FZzxRcUb2C3nEQ7syHJlY".to_string(),
+//! #         n: n.to_string(),
+//! #         e: e.to_string(),
+//! #     };
+//! 
+//!     let mut az_auth = AzureAuth::new("6e74172b-be56-4843-9ff4-e66a39bb12e3").unwrap();
+//! #     az_auth.set_public_keys(vec![key]);
+//! 
+//!     let decoded_token = az_auth.validate_token(&token).expect("validated");
+//!     assert_eq!(decoded_token.claims.preferred_username, Some("abeli@microsoft.com".to_string()));
+//! ```
+//! 
+//! # Example in webserver
+//! 
+//! ```rust, ignore
+//! struct AppState {
+//!     azure_auth: auth::AzureAuth,
+//! }
+//! 
+//! pub fn start_web_server(port: &str) -> Result<(), Error> {
+//! 
+//!     // since this calls windows api, wrap in Arc<Mutex<_>> and share the validator
+//!     let app_state = Arc::new(Mutex::new(AppState {
+//!         azure_auth: auth::AzureAuth::new("32166c25-5e31-4cfc-a29b-04d0dfdb019a").unwrap(),
+//!     }));
+//!     println!("Starting web server on: http://localhost:8000");
+//! 
+//!     server::new(move || app(app_state.clone())).bind(port)?.run();
+//! 
+//!     Ok(())
+//! }
+//! 
 //! # Note
 //! There is another library providing the same functionality but on a slightly lower level. If you 
 //! reauire more control then have a look at: https://github.com/tazjin/alcoholic_jwt
@@ -51,6 +92,7 @@ const AZ_OPENID_URL: &str =
 
 /// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what
 /// defaults are set and which you can change:
+/// 
 ///
 /// # Defaults
 ///
@@ -255,7 +297,7 @@ impl AzureAuth {
 
     fn refresh_pub_keys(&mut self) -> Result<(), AuthErr> {
         let mut resp: Response = reqwest::get(&self.jwks_uri)?;
-        let resp: Keys = resp.json()?;
+        let resp: JwkSet = resp.json()?;
         self.last_refresh = Some(Local::now().naive_local());
         self.public_keys = Some(resp.keys);
         Ok(())
@@ -440,7 +482,7 @@ fn from_base64_to_bytearray_non_url(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
 }
 
 #[derive(Debug, Deserialize)]
-struct Keys {
+struct JwkSet {
     keys: Vec<Jwk>,
 }
 

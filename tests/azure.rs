@@ -1,4 +1,4 @@
-use azure_oauth_rs::*;
+use azure_jwt::*;
 use jsonwebtoken as jsw;
 
 const TOKEN: &str = "a_valid_azure_token__Note_that_the_keys_will_expire_so_this_test_needs_fresh_tokens_to_run";
