@@ -31,7 +31,16 @@ let decoded = az_auth.validate_token(TEST_TOKEN)?;
 
 ```
 
-# OpenSSL
+## Features
+- `vendored` feature will compile OpenSSL with the `vendored` feature: https://docs.rs/openssl/0.10.20/openssl/
+
+```toml
+
+azure_jwt = {version="0.1, features = ["vendored"]}
+
+```
+
+## OpenSSL
 
 This library depends on the [openssl crate](https://docs.rs/openssl/0.10.20/openssl/).
 There are two options:
@@ -41,14 +50,13 @@ its default settings.
 compile the OpenSSL with its `vendored` feature enabled. This will compile and statically link 
 OpenSSL to the library. You will need a C compiler, Make and Perl installed for it to build.
 
-You'll find  more information here: https://docs.rs/openssl/0.10.20/openssl/
 
-# Windows
+## Windows
 
 On windows, the `vendored` feature requires a small workaround to find the systems root certificates
 so we will add an additional dependency to fix that. For more information see: https://github.com/alexcrichton/openssl-probe 
 
-## Note
+## Alternatives
 
 There is another library: [alcoholic_jwt](https://github.com/tazjin/alcoholic_jwt]) that provides
 much of the same functionality but on a slightly lower level allowing for using it with other providers
@@ -82,7 +90,7 @@ was rejected.
 
 **You'll need:**
 
-You will need a private client_id created by Azure for your application to be able to verify that
+You will need a [private client_id created by Azure for your application][link2] to be able to verify that
 the token is created for your application (and not anyone with a valid Azure token can log in). This is the ID this library
 needs from you to authenticate that the token vas issued for your application.
 
@@ -99,6 +107,6 @@ For more information, see this artice: https://docs.microsoft.com/en-us/azure/ac
 
 ## Todo
 - [ ] Use alcoholic_jwk as basis for parsing and validating tokens and keys
-- [ ] See if it's possible to refactor the code to avoid needing a mutable reference to do validation
 
 [link1]: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+[link2]: https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal
