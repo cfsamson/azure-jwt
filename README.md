@@ -44,7 +44,9 @@ to microsoft endpoints (one to get the open connect metadata to get the current 
 fetch the jwk sets). You should create these objects with care and prefer using a reference to one
 instance. If you're using it on a webserver you should avoid creating a new instance on every connection
 and rather instanciate one on server start and use a mutex or channels to do validation. Once the keys 
-are loaded the operations should be very fast. Benchmarks are however needed to confirm this.
+are loaded the operations should be very fast. More benchmarks are however needed to confirm this, but 
+the current benchmark indicates around 74 nanoseconds to perform a validation on my 2013 Intel Core 2 
+processor once the public keys are retrieved (should only occur every 24h if set up correctly).
 
 ## Security
 
@@ -54,7 +56,7 @@ are loaded the operations should be very fast. Benchmarks are however needed to 
 3. That the token is not expired
 4. That the token is not used before it's valid
 5. That the token is not issued in the future
-6. That the algorithm the token tells us to use is the same as we use*
+6. That the algorithm the token header specifies the right algorithm*
 
 * Note that we do NOT use the token header to set the algorithm for us, look [at this article for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
 
@@ -63,7 +65,7 @@ was rejected.
 
 **You'll need:**
 
-You will need a private client_id created by Azure for your application to be able to veriify that
+You will need a private client_id created by Azure for your application to be able to verify that
 the token is created for your application (and not anyone with a valid Azure token can log in). This is the ID this library
 needs from you to authenticate that the token vas issued for your application.
 
