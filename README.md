@@ -73,13 +73,15 @@ You get a verified token parsed for you in return.
 
 **You still must take care of:**
 
-1. Validating that the user has the right access to your system yourself
+1. Validating that the user has the right access to your system 
 2. Validating any other information that is important for your use case
-3. If you as for more information about the user than what is standard you will need
-to make a struct that maps to all the fields in the token.
+3. If you ask for more information about the user than what is defined in [Microsoft ID tokens reference][link1] you will need
+to make a struct that maps to all the fields in the token and use the `custom_validation` method.
 
 For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 
 ## Todo
 - [ ] Use alcoholic_jwk as basis for parsing and validating tokens and keys
 - [ ] See if it's possible to refactor the code to avoid needing a mutable reference to do validation
+
+[link1]: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
