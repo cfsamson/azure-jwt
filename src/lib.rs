@@ -175,6 +175,9 @@ impl AzureAuth {
     /// Useful in situations where you get fields you that are not covered by
     /// the default mapping or want to change the validaion requirements (i.e
     /// if you want the leeway set to two minutes instead of one).
+    /// 
+    /// # Note
+    /// You'll need to pull in `jsonwebtoken` to use `Validation` from that crate.
     ///
     /// # Example
     ///
@@ -197,7 +200,6 @@ impl AzureAuth {
     /// let valid_token: Token<MyClaims>  = auth.validate_custom(some_token, &validator).unwrap();
     /// ```
     ///
-    /// You'll need to pull in `jsonwebtoken` crate to
     pub fn validate_custom<T>(
         &mut self,
         token: &str,
