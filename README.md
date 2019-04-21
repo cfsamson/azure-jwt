@@ -1,6 +1,13 @@
 
 
 # A library that authenticates Azure JWT tokens.
+
+[![Crates.io](https://img.shields.io/crates/v/azure_jwt.svg)](https://crates.io/crates/azure_jwt)
+[![Chrono on docs.rs][docsrs-image]][docsrs]
+
+[docsrs-image]: https://docs.rs/azure_jwt/badge.svg
+[docsrs]: https://docs.rs/azure_jwt
+
 This library will fetch public keys from Microsoft and validate the authenticity of the Tokens and verify that they
 are issued by Azure and are not tampered with. See further down for details on what this library validates and
 whay you need to take care of yourself.

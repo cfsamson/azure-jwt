@@ -3,6 +3,15 @@ name = "azure_jwt"
 version = "0.1.0"
 authors = ["Carl Fredrik Samson <cf@samson.no>"]
 edition = "2018"
+repository = "https://github.com/cfsamson/azure-jwt"
+documentation = "https://docs.rs/azure-jwt/"
+readme = "README.md"
+license = "MIT"
+keywords = ["azure", "token", "jwt", "jwk", "validation"]
+categories = ["Authentication"]
+description = """
+A simple JWT validator for Microsoft Azure Id tokens.
+"""
 
 [dependencies]
 jsonwebtoken = "5.0.1"
