@@ -8,7 +8,7 @@ documentation = "https://docs.rs/azure-jwt/"
 readme = "README.md"
 license = "MIT"
 keywords = ["azure", "token", "jwt", "jwk", "validation"]
-categories = ["Authentication"]
+categories = ["authentication"]
 description = """
 A simple JWT validator for Microsoft Azure Id tokens.
 """
