@@ -15,7 +15,7 @@
 //! 3. That the token is not expired
 //! 4. That the token is not used before it's valid
 //! 5. That the token is not issued in the future
-//! 6. That the algorithm the token tells us to use is the same as we use*
+//! 6. That the algorithm in the token header is the same as we use*
 //!
 //! * Note that we do NOT use the token header to set the algorithm for us, look [at this article
 //! for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
@@ -76,7 +76,7 @@ pub struct AzureAuth {
     last_refresh: Option<NaiveDateTime>,
     exp_hours: i64,
     retry_counter: u32,
-    retry_enabled: bool,
+    is_retry_enabled: bool,
     is_offline: bool,
 }
 
@@ -97,7 +97,7 @@ impl AzureAuth {
             last_refresh: None,
             exp_hours: 24,
             retry_counter: 0,
-            retry_enabled: true,
+            is_retry_enabled: true,
             is_offline: false,
         })
     }
@@ -112,7 +112,7 @@ impl AzureAuth {
             last_refresh: Some(Local::now().naive_local()),
             exp_hours: 24,
             retry_counter: 0,
-            retry_enabled: true,
+            is_retry_enabled: true,
             is_offline: true,
         })
     }
@@ -224,7 +224,7 @@ impl AzureAuth {
     }
 
     fn should_retry(&mut self) -> bool {
-        if self.is_offline || !self.retry_enabled {
+        if self.is_offline || !self.is_retry_enabled {
             return false;
         }
 
@@ -243,13 +243,13 @@ impl AzureAuth {
     }
 
     pub fn set_no_retry(&mut self) {
-        self.retry_enabled = false;
+        self.is_retry_enabled = false;
     }
 
     fn is_keys_valid(&self) -> bool {
         match self.last_refresh {
             None => false,
-            Some(dt) => Local::now().naive_local() - dt <= Duration::hours(self.exp_hours),
+            Some(lr) => (Local::now().naive_local() - lr) <= Duration::hours(self.exp_hours),
         }
     }
 
