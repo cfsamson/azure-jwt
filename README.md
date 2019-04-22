@@ -53,6 +53,8 @@ OpenSSL to the library. You will need a C compiler, Make and Perl installed for 
 
 
 ## Windows
+Most Windows system will not have OpenSSL installed by default so the easiest way to get the library working is compiling with
+the `vendored` feature. Beware that building OpenSSL the first time will require some time.
 
 On windows, the `vendored` feature requires a small workaround to find the systems root certificates
 so we will add an additional dependency to fix that. For more information see: https://github.com/alexcrichton/openssl-probe 
