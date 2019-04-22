@@ -109,17 +109,30 @@ use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
+#[cfg(windows)] 
+use openssl_probe;
 #[cfg(feature = "vendored")] 
 use openssl_vendored as openssl;
 #[cfg(not(feature = "vendored"))] 
 use openssl_std as openssl;
 use openssl::rsa::Rsa;
 
+
 mod error;
 pub use error::AuthErr;
 
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
+
+#[cfg(windows)] 
+fn init() {
+    openssl_probe::init_ssl_cert_env_vars();
+}
+
+#[cfg(not(windows))]
+fn init() {
+    ();
+}
 
 /// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what
 /// defaults are set and which you can change:
@@ -163,11 +176,8 @@ impl AzureAuth {
     /// # Errors
     /// If there is a connection issue to the Microsoft public key apis.
     pub fn new(aud: impl Into<String>) -> Result<Self, AuthErr> {
-        if cfg!(target_os = "windows") {
-            use openssl_probe;
-            openssl_probe::init_ssl_cert_env_vars();
-        };
-
+        init();
+        
         Ok(AzureAuth {
             aud_to_val: aud.into(),
             jwks_uri: AzureAuth::get_jwks_uri()?,
