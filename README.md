@@ -37,7 +37,7 @@ be used with the `default-features = false` flag or an error will occur.
 
 ```toml
 
-azure_jwt = {version="0.1, default-features = false,  features = ["vendored"]}
+azure_jwt = {version="0.1", default-features = false,  features = ["vendored"]}
 
 ```
 
