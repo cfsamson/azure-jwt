@@ -83,7 +83,7 @@
 //! 
 //!     Ok(())
 //! }
-//! 
+//! ```
 //! # OpenSSL
 //! 
 //! This library depends on the [openssl crate](https://docs.rs/openssl/0.10.20/openssl/).
