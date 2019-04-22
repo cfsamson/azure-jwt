@@ -61,7 +61,7 @@ so we will add an additional dependency to fix that. For more information see: h
 
 ## Alternatives
 
-There is another library: [alcoholic_jwt](https://github.com/tazjin/alcoholic_jwt]) that provides
+There is another library: [alcoholic_jwt](https://github.com/tazjin/alcoholic_jwt) that provides
 much of the same functionality but on a slightly lower level allowing for using it with other providers
 as well. If you need more control then take a look at that library.
 
