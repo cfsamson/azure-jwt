@@ -33,6 +33,16 @@
 //!
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 //! 
+//! ## Features
+//!- `vendored` feature will compile OpenSSL with the `vendored` feature: https://docs.rs/openssl/0.10.20/openssl/, but needs to
+//!be used with the `default-features = false` flag or an error will occur.
+//!
+//!```toml
+//!
+//!azure_jwt = {version="0.1, default-features = false,  features = ["vendored"]}
+//!
+//!```
+//! 
 //! # Example
 //! 
 //! ```rust
@@ -97,9 +107,13 @@
 use base64;
 use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
-use openssl::rsa::Rsa;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "vendored")] 
+use openssl_vendored as openssl;
+#[cfg(not(feature = "vendored"))] 
+use openssl_std as openssl;
+use openssl::rsa::Rsa;
 
 mod error;
 pub use error::AuthErr;

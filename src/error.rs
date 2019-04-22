@@ -1,5 +1,5 @@
 use std::{error::Error, fmt};
-use openssl::error::ErrorStack;
+use crate::openssl::error::ErrorStack;
 use crate::jwt;
 
 #[derive(Debug)]
@@ -8,7 +8,7 @@ pub enum AuthErr {
     ConnectionError(reqwest::Error),
     Other(String),
     ParseError(String),
-    OpenSsl(openssl::error::ErrorStack),
+    OpenSsl(ErrorStack),
 }
 
 impl Error for AuthErr {}

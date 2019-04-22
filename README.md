@@ -32,11 +32,12 @@ let decoded = az_auth.validate_token(TEST_TOKEN)?;
 ```
 
 ## Features
-- `vendored` feature will compile OpenSSL with the `vendored` feature: https://docs.rs/openssl/0.10.20/openssl/
+- `vendored` feature will compile OpenSSL with the `vendored` feature: https://docs.rs/openssl/0.10.20/openssl/, but needs to
+be used with the `default-features = false` flag or an error will occur.
 
 ```toml
 
-azure_jwt = {version="0.1, features = ["vendored"]}
+azure_jwt = {version="0.1, default-features = false,  features = ["vendored"]}
 
 ```
 
@@ -71,7 +72,8 @@ instance. If you're using it on a webserver you should avoid creating a new inst
 and rather instanciate one on server start and use a mutex or channels to do validation. Once the keys 
 are loaded the operations should be very fast. More benchmarks are however needed to confirm this, but 
 the current benchmark indicates around 74 nanoseconds to perform a validation on my 2013 Intel Core 2 
-processor once the public keys are retrieved (should only occur every 24h if set up correctly).
+processor and 36 nanoseconds on a newer i7 3.7 GHz, once the public keys are retrieved (which should only occur every 24h 
+if set up correctly).
 
 ## Security
 
@@ -107,6 +109,7 @@ For more information, see this artice: https://docs.microsoft.com/en-us/azure/ac
 
 ## Todo
 - [ ] Use alcoholic_jwk as basis for parsing and validating tokens and keys
+- [ ] Avoid leaking `jsonwebtoken::Validation` and provide a layer between so we don't depend on it's API.
 
 [link1]: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 [link2]: https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal
