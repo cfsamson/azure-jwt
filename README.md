@@ -8,9 +8,9 @@
 [docsrs-image]: https://docs.rs/azure_jwt/badge.svg
 [docsrs]: https://docs.rs/azure_jwt
 
-This library will fetch public keys from Microsoft and validate the authenticity of the Tokens and verify that they
-are issued by Azure and are not tampered with. See further down for details on what this library validates and
-whay you need to take care of yourself.
+This library will fetch public keys from Microsoft and use those keys to validate the 
+authenticity of a token you provide. It defaults to validating and mapping Azure Id tokens for
+you out of the box, but should work with other tokens as well if you use a custom validator.
 
 This library will send requests to the Microsoft api to get updated keys. The default is to expire the stored keys after
 24 hours and fetch new ones since that correspond with the normal key rotation scheme. There is also a default retry fallback 
@@ -79,7 +79,7 @@ if set up correctly).
 
 ## Security
 
-**This library validates five things:**
+**This library validates six things:**
 1. That the token is issued by Azure and is not tampered with
 2. That this token is issued for use in your application
 3. That the token is not expired

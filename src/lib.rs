@@ -1,15 +1,12 @@
 //! # A library that authenticates Azure JWT tokens.
 //!
-//! This library will fetch public keys from Microsoft and validate the authenticity of the Tokens
-//! and verify that they are issued by Azure and are not tampered with.
-//!
-//! It will also check that this token is issued to the right audience matching the `aud` property
-//! of the token with the client_id you got when you registered your app in Azure. If either of
-//! these fail, the token is invalid.
+//! This library will fetch public keys from Microsoft and use those keys to validate the 
+//! authenticity of a token you provide. It defaults to validating and mapping Azure Id tokens for
+//! you out of the box, but should work with other tokens as well if you use a custom validator.
 //!
 //! # Dafault validation
 //!
-//! **There are mainly five conditions a well formed token will need to meet to be validated:**
+//! **There are mainly six conditions a well formed token will need to meet to be validated:**
 //! 1. That the token is issued by Azure and is not tampered with
 //! 2. That this token is issued for use in your application
 //! 3. That the token is not expired
@@ -25,6 +22,9 @@
 //!
 //! If the token is invalid it will return an Error instead of a boolean. The main reason for this
 //! is easier logging of what type of test it failed.
+//! 
+//! You also have a `validate_custom` mathod which gives you full control over the mapping of the token
+//! fields and more control over the validation.
 //!
 //! # Security
 //! You will need a private app_id created by Azure for your application to be able to veriify that
