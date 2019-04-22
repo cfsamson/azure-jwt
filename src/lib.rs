@@ -131,7 +131,6 @@ fn init() {
 
 #[cfg(not(windows))]
 fn init() {
-    ();
 }
 
 /// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what
