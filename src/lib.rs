@@ -109,7 +109,7 @@ use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
 use reqwest::{self, Response};
 use serde::{Deserialize, Serialize};
-#[cfg(windows)] 
+#[cfg(target_os = "windows")] 
 use openssl_probe;
 #[cfg(feature = "vendored")] 
 use openssl_vendored as openssl;
@@ -124,7 +124,7 @@ pub use error::AuthErr;
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
 
-#[cfg(windows)] 
+#[cfg(target_os="windows")] 
 fn init() {
     openssl_probe::init_ssl_cert_env_vars();
 }
