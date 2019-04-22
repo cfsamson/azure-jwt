@@ -21,7 +21,6 @@ chrono = "0.4.6"
 base64 = "0.10.1"
 
 openssl_std = {package="openssl", version="0.10.20", optional=true}
-
 openssl_vendored = {package="openssl",  version="0.10.20", features=["vendored"], optional=true}
 
 [target.'cfg(windows)'.dependencies]

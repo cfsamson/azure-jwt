@@ -108,8 +108,11 @@ to make a struct that maps to all the fields in the token and use the `custom_va
 For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 
 ## Todo
+There are no known errors in the library but there are a few things that could be done to make it better:
+
 - [ ] Use alcoholic_jwk as basis for parsing and validating tokens and keys
 - [ ] Avoid leaking `jsonwebtoken::Validation` and provide a layer between so we don't depend on it's API.
+- [ ] Look for a better solution to conditionally compile openssl with vendored feature. The cargo.toml hack we have works for nowm though.
 
 [link1]: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 [link2]: https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal
