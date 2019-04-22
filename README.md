@@ -10,13 +10,13 @@
 
 This library will fetch public keys from Microsoft and use those keys to validate the 
 authenticity of a token you provide. It defaults to validating and mapping Azure Id tokens for
-you out of the box, but should work with other tokens as well if you use a custom validator.
+you out of the box.
 
-This library will send requests to the Microsoft api to get updated keys. The default is to expire the stored keys after
+We fetch Azures public keys by sending request for them through the open-connect api. The default is to expire the stored keys after
 24 hours and fetch new ones since that correspond with the normal key rotation scheme. There is also a default retry fallback 
-where key that doesn't match wil trigger _one_ refresh of the keys (limited to once an hour), just in case the set default is 
-badly synced with the rotation of the Microsoft public keys or Microsoft decides to rotate the keys immideately for some reason. 
-Both of these settings can be configured.
+where a `kid` that doesn't match any of our current public keys wil trigger _one_ refresh of the keys (limited to once an hour), 
+just in case the set default is badly synced with the rotation of the public keys or Microsoft decides to rotate the keys 
+immediately for some reason. Both of these settings can be configured.
 
 ## Example
 
@@ -68,10 +68,10 @@ as well. If you need more control then take a look at that library.
 ## Performance
 
 When you create a new `AzureAuth` instance in its default configuration it will trigger two calls
-to microsoft endpoints (one to get the open connect metadata to get the current jwks_uri and one to 
+to Microsoft endpoints (one to get the open connect metadata to get the current jwks_uri and one to 
 fetch the jwk sets). You should create these objects with care and prefer using a reference to one
 instance. If you're using it on a webserver you should avoid creating a new instance on every connection
-and rather instanciate one on server start and use a mutex or channels to do validation. Once the keys 
+and rather instantiate one on server start and use a mutex or channels to do validation. Once the keys 
 are loaded the operations should be very fast. More benchmarks are however needed to confirm this, but 
 the current benchmark indicates around 74 nanoseconds to perform a validation on my 2013 Intel Core 2 
 processor and 36 nanoseconds on a newer i7 3.7 GHz, once the public keys are retrieved (which should only occur every 24h 
@@ -105,16 +105,16 @@ You get a verified token parsed for you in return.
 1. Validating that the user has the right access to your system 
 2. Validating any other information that is important for your use case
 3. If you ask for more information about the user than what is defined in [Microsoft ID tokens reference][link1] you will need
-to make a struct that maps to all the fields in the token and use the `custom_validation` method.
+to make a Struct that maps to all the fields in the token and use the `custom_validation` method.
 
-For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+For more information, see this article: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 
 ## Todo
 There are no known errors in the library but there are a few things that could be done to make it better:
 
 - [ ] Use alcoholic_jwk as basis for parsing and validating tokens and keys
 - [ ] Avoid leaking `jsonwebtoken::Validation` and provide a layer between so we don't depend on it's API.
-- [ ] Look for a better solution to conditionally compile openssl with vendored feature. The cargo.toml hack we have works for nowm though.
+- [ ] Look for a better solution to conditionally compile openssl with vendored feature. The cargo.toml hack we have works for now though.
 
 [link1]: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 [link2]: https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal
