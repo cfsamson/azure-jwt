@@ -150,9 +150,7 @@ pub use error::AuthErr;
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
 
-/// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what
-/// defaults are set and which you can change:
-///
+/// AzureAuth is the what you'll use to validate your token.
 ///
 /// # Defaults
 ///
@@ -166,6 +164,7 @@ const AZ_OPENID_URL: &str =
 /// - The timestamps are given a 60s "leeway" to account for time skew between servers
 ///
 /// # Errors:
+///
 /// - If one of Microsofts enpoints for public keys are down
 /// - If the token can't be parsed as a valid Azure token
 /// - If the tokens fails it's authenticity test
@@ -183,14 +182,17 @@ pub struct AzureAuth {
 }
 
 impl AzureAuth {
-    /// One thing to note that this method will call the Microsoft apis to fetch the current keys
-    /// an this can fail. The public keys are fetched since we will not be able to perform any
-    /// verification without them. Please note that this method is quite expensive to do. Try
-    /// keeping the object alive instead of creating new objects. If you need to pass around an
-    /// instance of the object, then cloning it will be cheaper than creating a new one.
+    /// Creates a new dafault instance. This method will call the Microsoft apis to fetch the current keys
+    /// which can fail. The public keys are fetched since we need them to perform
+    /// verification. Please note that fetching the OpenID manifest and public keys are quite slow
+    /// since we call an external API in a blocking manner. Try keeping a single instance
+    /// alive instead of creating new ones for every validation. If you need to pass around an
+    /// instance of the object, creating a pool of instances at startup or wrapping a single
+    /// instance in a `Mutex` is better than creating many new instances.
     ///
     /// # Errors
-    /// If there is a connection issue to the Microsoft public key apis.
+    ///
+    /// If there is a connection issue to the Microsoft APIs.
     pub fn new(aud: impl Into<String>) -> Result<Self, AuthErr> {
         Ok(AzureAuth {
             aud_to_val: aud.into(),
@@ -219,7 +221,7 @@ impl AzureAuth {
         })
     }
 
-    /// Dafault validation, see struct documentation for the defaults.
+    /// Dafault validation, see `AzureAuth` documentation for the defaults.
     pub fn validate_token(&mut self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
         let mut validator = jwt::Validation::new(jwt::Algorithm::RS256);
 
@@ -238,7 +240,7 @@ impl AzureAuth {
     ///
     /// # Note
     /// You'll need to pull in `jsonwebtoken` to use `Validation` from that crate.
-    ///
+    /// 
     /// # Example
     ///
     /// ```rust,ignore
