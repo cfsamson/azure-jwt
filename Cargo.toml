@@ -1,6 +1,6 @@
 [package]
 name = "azure_jwt"
-version = "0.1.6"
+version = "0.2.0"
 authors = ["Carl Fredrik Samson <cf@samson.no>"]
 edition = "2018"
 repository = "https://github.com/cfsamson/azure-jwt"
@@ -14,25 +14,14 @@ A simple JWT validator for Microsoft Azure Id tokens.
 """
 
 [dependencies]
-jsonwebtoken = "5.0.1"
-reqwest = "0.9.14"
-serde = {version="1.0.90", features=["derive"]}
-chrono = "0.4.6"
-base64 = "0.10.1"
-
-openssl_std = {package="openssl", version="0.10.20", optional=true}
-openssl_vendored = {package="openssl",  version="0.10.20", features=["vendored"], optional=true}
-
-[target.'cfg(windows)'.dependencies]
-openssl-probe = "0.1.2"
-
-[features]
-default = ["openssl_std"]
-vendored = ["openssl_vendored"]
-
+jsonwebtoken = "7.2.0"
+reqwest = {version = "0.11.1", features = ["blocking", "json"]}
+serde = { version = "1.0.124", features = ["derive"] }
+chrono = "0.4.19"
 
 [dev-dependencies]
-criterion = "0.1.2"
+criterion = "0.3.4"
+base64 = "0.13.0"
 
 [[bench]]
 name = "validation"

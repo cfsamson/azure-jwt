@@ -1,5 +1,4 @@
 use azure_jwt::*;
-use base64;
 use jsonwebtoken as jwt;
 
 const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
@@ -45,7 +44,7 @@ fn test_token_header() -> String {
 // Token taken from microsift docs: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 fn test_token_claims() -> String {
     format!(
-            r#"{{
+        r#"{{
                 "aud": "6e74172b-be56-4843-9ff4-e66a39bb12e3",
                 "iss": "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0",
                 "iat": {},
@@ -63,24 +62,17 @@ fn test_token_claims() -> String {
                 "tid": "72f988bf-86f1-41af-91ab-2d7cd011db47",
                 "uti": "fqiBqXLPj0eQa82S-IYFAA",
                 "ver": "2.0"
-            }}"#, 
+            }}"#,
         chrono::Utc::now().timestamp() - 1000,
         chrono::Utc::now().timestamp() - 2000,
-        chrono::Utc::now().timestamp() + 1000)
-}
-
-fn from_base64_to_bytearray(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
-    let decoded = base64::decode_config(b64_str, base64::STANDARD)
-        .map_err(|e| AuthErr::ParseError(e.to_string()))?;
-    Ok(decoded)
+        chrono::Utc::now().timestamp() + 1000
+    )
 }
 
 // We create a test token from parts here. We use the v2 token used as example
 // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 fn generate_test_token() -> String {
-    // jwt library expects a `*.der` key wich is a byte encoded file so
-    // we need to convert the key from base64 to their byte value to use them.
-    let private_key: Vec<u8> = from_base64_to_bytearray(PRIVATE_KEY_TEST).expect("priv_key");
+    let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).expect("priv_key");
 
     // we need to construct the calims in a function since we need to set
     // the expiration relative to current time
@@ -96,7 +88,8 @@ fn generate_test_token() -> String {
     .join(".");
 
     // we create the signature using our private key
-    let signature = jwt::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Singed.");
+    let signature =
+        jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Singed.");
 
     // we construct a complete token which looks like: header.claims.signature
     let complete_token = format!("{}.{}", test_token, signature);

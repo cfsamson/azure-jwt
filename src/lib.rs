@@ -1,8 +1,11 @@
-//! # A library that authenticates Azure JWT tokens.
+//! # Authenticates Azure JWT tokens.
 //!
-//! This library will fetch public keys from Microsoft and use those keys to validate the 
+//! This library will fetch public keys from Microsoft and use those keys to validate the
 //! authenticity of a token you provide. It defaults to validating and mapping Azure Id tokens for
 //! you out of the box, but should work with other tokens as well if you use a custom validator.
+//!
+//! It uses `request` with the "blocking" feature to fetch metadata and public
+//! keys, but used correctly it will only update these once a day.
 //!
 //! # Dafault validation
 //!
@@ -22,7 +25,7 @@
 //!
 //! If the token is invalid it will return an Error instead of a boolean. The main reason for this
 //! is easier logging of what type of test it failed.
-//! 
+//!
 //! You also have a `validate_custom` mathod which gives you full control over the mapping of the token
 //! fields and more control over the validation.
 //!
@@ -32,91 +35,114 @@
 //! and you will need to authenticate that the user has the right access to your system.
 //!
 //! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
-//! 
-//! ## Features
-//!- `vendored` feature will compile OpenSSL with the `vendored` feature: https://docs.rs/openssl/0.10.20/openssl/, but needs to
-//!be used with the `default-features = false` flag or an error will occur.
 //!
-//!```toml
-//!
-//!azure_jwt = {version="0.1, default-features = false,  features = ["vendored"]}
-//!
-//!```
-//! 
 //! # Example
-//! 
+//!
 //! ```rust
 //! use azure_jwt::*;
-//! # let token = "ewogICAgICAgICAgICAgICAgInR5cCI6ICJKV1QiLAogICAgICAgICAgICAgICAgImFsZyI6ICJSUzI1NiIsCiAgICAgICAgICAgICAgICAia2lkIjogImk2bEdrM0ZaenhSY1ViMkMzbkVRN3N5SEpsWSIKICAgICAgICAgICAgfQ==.ewogICAgICAgICAgICAgICAgImF1ZCI6ICI2ZTc0MTcyYi1iZTU2LTQ4NDMtOWZmNC1lNjZhMzliYjEyZTMiLAogICAgICAgICAgICAgICAgImlzcyI6ICJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3L3YyLjAiLAogICAgICAgICAgICAgICAgImlhdCI6IDE1NTU4OTYyNDAsCiAgICAgICAgICAgICAgICAibmJmIjogMTU1NTg5NTI0MCwKICAgICAgICAgICAgICAgICJleHAiOiAxNTY0NTM3MjQwLAogICAgICAgICAgICAgICAgImFpbyI6ICJBWFFBaS84SUFBQUF0QWFaTG8zQ2hNaWY2S09udHRSQjdlQnE0L0RjY1F6amNKR3hQWXkvQzNqRGFOR3hYZDZ3TklJVkdSZ2hOUm53SjFsT2NBbk5aY2p2a295ckZ4Q3R0djMzMTQwUmlvT0ZKNGJDQ0dWdW9DYWcxdU9UVDIyMjIyZ0h3TFBZUS91Zjc5UVgrMEtJaWpkcm1wNjlSY3R6bVE9PSIsCiAgICAgICAgICAgICAgICAiYXpwIjogIjZlNzQxNzJiLWJlNTYtNDg0My05ZmY0LWU2NmEzOWJiMTJlMyIsCiAgICAgICAgICAgICAgICAibmFtZSI6ICJBYmUgTGluY29sbiIsCiAgICAgICAgICAgICAgICAiYXpwYWNyIjogIjAiLAogICAgICAgICAgICAgICAgIm9pZCI6ICI2OTAyMjJiZS1mZjFhLTRkNTYtYWJkMS03ZTRmN2QzOGU0NzQiLAogICAgICAgICAgICAgICAgInByZWZlcnJlZF91c2VybmFtZSI6ICJhYmVsaUBtaWNyb3NvZnQuY29tIiwKICAgICAgICAgICAgICAgICJyaCI6ICJJIiwKICAgICAgICAgICAgICAgICJzY3AiOiAiYWNjZXNzX2FzX3VzZXIiLAogICAgICAgICAgICAgICAgInN1YiI6ICJIS1pwZmFIeVdhZGVPb3VZbGl0anJJLUtmZlRtMjIyWDVyclYzeERxZktRIiwKICAgICAgICAgICAgICAgICJ0aWQiOiAiNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3IiwKICAgICAgICAgICAgICAgICJ1dGkiOiAiZnFpQnFYTFBqMGVRYTgyUy1JWUZBQSIsCiAgICAgICAgICAgICAgICAidmVyIjogIjIuMCIKICAgICAgICAgICAgfQ==.0KR1BGZcrMAgs4pYgRcxFQGAuBPMv7Jwacms3XB2b3I8XvuKSdFR_lZCz9nVyy3Z5Ng5GC9kZl11Ufu4znGThBK4NVAuTYijGUK84bNDuSo6TOnA1flQb9ovZieAVOq5sI0dNHO8tqE_xesbsh5A8p4JKhTiTVAfTAVLc9_GcXwKuIJj-Mq9WTs5sfc3qZ678oCLRMwLKuYp8MoC7EzUKPIDj2qxa4Z6_SVveMmq2e3Bqlnk9pCRIrauJfoNTnC7qr57Coq4RCVUBxwAGH7FmM6Q_Q0s-rHhVL0z6o-WrmywmlBTnpmJrhBnd27a4rn_mUeHveBIhv-_OPxjAUVVKw";
+//! # use jsonwebtoken as jwt;
+//! # const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+//! # const PUBLIC_KEY_E: &str = "AQAB";
+//! # const PRIVATE_KEY_TEST: &str = "MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr/wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT/8i/Qahw/Zz/UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA+ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM/Lagxpw2luwpvaBmDO5tHqFOO+6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQIDAQABAoIBAQC982Yrmi7q7IHC/qWglUpzKhLGe2PAWVVaZ5rfnIoNs8K3fU8QcUKumFGAMsjpeM1pnaXSeExFmGsMY+Ox1YwSUA81DYxuH6Ned86YDqpgIDr5M0Ba7JmDOLWXoIR8byB19oMOuhjBAW+PEKlb0Z2a1f1Gt3J8oAxWq8PDsShHRdjyesVS36QZpIgjZskcNws/zqqqDRrLWuLmAvk6E+tMD6sqo9xpzEqHF7rmwtt5yAtM1oZdWoEg2O+wZH5DBX2GhLlNZi/8sIiFMo+jouQn+l6Qc4G65vnnoZ+yEuf9fTJPnTHBFMViUcmTPsdbD4eLfrRXwAE9GYrvR/RVusABAoGBAPgsQ4kAChpzU2aP21NQV1XTBW+eoHVbcJoYuOlmwB6x5o8lDUz/EQVVYZavfNY1AjhEkfltCDjm1GHyWofrtGKTy7DHSZwPw5CxuqDtaiC6PMpFEu+Oxa09s7IZxpgInlrhY5JskOkH495BQ0xIU8UDxuP6sdtVNeQmWGjKG7kBAoGBAPPpNid4QEV4XleyAXT/JQGugdpa7TirWOEATNo10YPPqz7GphRhucT0ipNKMi/0XKh3U0IC7XxjUvtE2LP9TVGAcV/Wzi4EYp1fziFuF9QcUds2tJ60SpfgIQrmVcF1zHxn4/mSABoIyFxZSb4Tq9f+KXPAO5/l0NjgrVwk6gVZAoGAbMVZxE4UH4u0XhtnEZkA7kjS9R0dTtKJA8EaKpIyWkG2v76JmdmhaCkH4LeBi5EoK+lB4YR8OhRRuawzKaeRJDOK7ywpgxEVsfFzzty/yyBVTIIBzqVQ1qFYhRLvC+ubHFH1BlQ3HyuqH9uS13hL3unM3lceZPdv61MzJJqQlAECgYAWg0MFV5sPDnIexAZQZzBiPFot7lCQ93fHpMBzL557/RIARFOV9AMyg6O6vpFtTa+zuPfNUvnajkxddthNnKajTCiqwOfc5Xi4r9wVx9SZNlfz1NPNBjUQWZaTK/lkVtwd63TmVyx9OqxLoc4lpikpUYM/9NFMC+k/61T0+U9EWQKBgCdZV3yxwkz3pi6/E40EXfUsj8HQG/UtFJGeUNQiysBrxTmtmwLyvJeCGruG96j1JcehpbcWKV+ObyMQuk65dM94uM7Wa+2NCA/MvorVcU7wdPbq7/eczZU4xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
+//! # fn test_token_header() -> String {
+//! #     format!(
+//! #         r#"{{
+//! #                 "typ": "JWT",
+//! #                 "alg": "RS256",
+//! #                 "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
+//! #             }}"#
+//! #     )
+//! # }
+//! # fn test_token_claims() -> String {
+//! #     format!(
+//! #             r#"{{
+//! #                 "aud": "6e74172b-be56-4843-9ff4-e66a39bb12e3",
+//! #                 "iss": "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/v2.0",
+//! #                 "iat": {},
+//! #                 "nbf": {},
+//! #                 "exp": {},
+//! #                 "aio": "AXQAi/8IAAAAtAaZLo3ChMif6KOnttRB7eBq4/DccQzjcJGxPYy/C3jDaNGxXd6wNIIVGRghNRnwJ1lOcAnNZcjvkoyrFxCttv33140RioOFJ4bCCGVuoCag1uOTT22222gHwLPYQ/uf79QX+0KIijdrmp69RctzmQ==",
+//! #                 "azp": "6e74172b-be56-4843-9ff4-e66a39bb12e3",
+//! #                 "name": "Abe Lincoln",
+//! #                 "azpacr": "0",
+//! #                 "oid": "690222be-ff1a-4d56-abd1-7e4f7d38e474",
+//! #                 "preferred_username": "abeli@microsoft.com",
+//! #                 "rh": "I",
+//! #                 "scp": "access_as_user",
+//! #                 "sub": "HKZpfaHyWadeOouYlitjrI-KffTm222X5rrV3xDqfKQ",
+//! #                 "tid": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+//! #                 "uti": "fqiBqXLPj0eQa82S-IYFAA",
+//! #                 "ver": "2.0"
+//! #             }}"#,
+//! #         chrono::Utc::now().timestamp() - 1000,
+//! #         chrono::Utc::now().timestamp() - 2000,
+//! #         chrono::Utc::now().timestamp() + 1000)
+//! # }
+//! # fn generate_test_token() -> String {
+//! #     let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
+//! #     let test_token_playload = test_token_claims();
+//! #     let test_token_header = test_token_header();
+//! #     let test_token = [
+//! #         base64::encode_config(&test_token_header, base64::URL_SAFE),
+//! #         base64::encode_config(&test_token_playload, base64::URL_SAFE),
+//! #     ]
+//! #     .join(".");
+//! #     let signature = jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
+//! #     let public_key = Jwk {
+//! #         kid: "".to_string(),
+//! #         n: PUBLIC_KEY_N.to_string(),
+//! #         e: PUBLIC_KEY_E.to_string(),
+//! #     };
+//! #     let public_key = jwt::DecodingKey::from_rsa_components(&public_key.n, &public_key.e);
+//! #     let complete_token = format!("{}.{}", test_token, signature);
+//! #     let verified = jwt::crypto::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
+//! #         .expect("verified");
+//! #     assert!(verified);
+//! #     complete_token
+//! # }
+//! # let token = generate_test_token();
 //! # let n: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
 //! # let e: &str = "AQAB";
-//! 
+//!
 //! # let key = Jwk {
 //! #         kid: "i6lGk3FZzxRcUb2C3nEQ7syHJlY".to_string(),
 //! #         n: n.to_string(),
 //! #         e: e.to_string(),
 //! #     };
-//! 
+//!
 //!     let mut az_auth = AzureAuth::new("6e74172b-be56-4843-9ff4-e66a39bb12e3").unwrap();
 //! #     az_auth.set_public_keys(vec![key]);
-//! 
+//!
 //!     let decoded_token = az_auth.validate_token(&token).expect("validated");
 //!     assert_eq!(decoded_token.claims.preferred_username, Some("abeli@microsoft.com".to_string()));
 //! ```
-//! 
+//!
 //! # Example in webserver
-//! 
+//!
 //! ```rust, ignore
 //! struct AppState {
 //!     azure_auth: auth::AzureAuth,
 //! }
-//! 
+//!
 //! pub fn start_web_server(port: &str) -> Result<(), Error> {
-//! 
+//!
 //!     // since this calls windows api, wrap in Arc<Mutex<_>> and share the validator
 //!     let app_state = Arc::new(Mutex::new(AppState {
 //!         azure_auth: auth::AzureAuth::new("32166c25-5e31-4cfc-a29b-04d0dfdb019a").unwrap(),
 //!     }));
 //!     println!("Starting web server on: http://localhost:8000");
-//! 
+//!
 //!     server::new(move || app(app_state.clone())).bind(port)?.run();
-//! 
+//!
 //!     Ok(())
 //! }
 //! ```
-//! # OpenSSL
-//! 
-//! This library depends on the [openssl crate](https://docs.rs/openssl/0.10.20/openssl/).
-//! There are two options:
-//! 1. If you have an installation of OpenSSL installed you can most likely compile this library with
-//! its default settings.
-//! 2. If you don't have OpenSSL libraries installed you can use the `vendored` feature that will in turn
-//! compile the OpenSSL with its `vendored` feature enabled. This will compile and statically link 
-//! OpenSSL to the library. You will need a C compiler, Make and Perl installed for it to build.
-//! 
-//! You'll find  more information here: https://docs.rs/openssl/0.10.20/openssl/
-//! 
-//! # Windows
-//! 
-//! On windows, the `vendored` feature requires a small workaround to find the systems root certificates
-//! so we will add an additional dependency to fix that. For more information see: https://github.com/alexcrichton/openssl-probe
-//! 
-//! # Note
-//! There is another library providing the same functionality but on a slightly lower level. If you 
-//! reauire more control then have a look at: https://github.com/tazjin/alcoholic_jwt
-use base64;
+//!
 use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken as jwt;
-use reqwest::{self, Response};
+use jwt::DecodingKey;
+use reqwest::{self, blocking::Response};
 use serde::{Deserialize, Serialize};
-#[cfg(target_os = "windows")] 
-use openssl_probe;
-#[cfg(feature = "vendored")] 
-use openssl_vendored as openssl;
-#[cfg(not(feature = "vendored"))] 
-use openssl_std as openssl;
-use openssl::rsa::Rsa;
-
 
 mod error;
 pub use error::AuthErr;
@@ -124,18 +150,9 @@ pub use error::AuthErr;
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
 
-#[cfg(target_os="windows")] 
-fn init() {
-    openssl_probe::init_ssl_cert_env_vars();
-}
-
-#[cfg(not(windows))]
-fn init() {
-}
-
 /// AzureAuth is the what you'll use to validate your token. I'll briefly explain here what
 /// defaults are set and which you can change:
-/// 
+///
 ///
 /// # Defaults
 ///
@@ -175,8 +192,6 @@ impl AzureAuth {
     /// # Errors
     /// If there is a connection issue to the Microsoft public key apis.
     pub fn new(aud: impl Into<String>) -> Result<Self, AuthErr> {
-        init();
-
         Ok(AzureAuth {
             aud_to_val: aud.into(),
             jwks_uri: AzureAuth::get_jwks_uri()?,
@@ -191,7 +206,7 @@ impl AzureAuth {
 
     /// Does not call the Microsoft openid configuration endpoint or fetches the JWK set.
     /// Use this if you want to handle updating the public keys yourself
-    fn new_offline(aud: impl Into<String>, public_keys: Vec<Jwk>) -> Result<Self, AuthErr> {
+    pub fn new_offline(aud: impl Into<String>, public_keys: Vec<Jwk>) -> Result<Self, AuthErr> {
         Ok(AzureAuth {
             aud_to_val: aud.into(),
             jwks_uri: String::new(),
@@ -210,7 +225,7 @@ impl AzureAuth {
 
         // exp, nbf, iat is set to validate as default
         validator.leeway = 60;
-        validator.set_audience(&self.aud_to_val);
+        validator.set_audience(&[&self.aud_to_val]);
         let decoded: Token<AzureJwtClaims> = self.validate_token_authenticity(token, &validator)?;
 
         Ok(decoded)
@@ -220,7 +235,7 @@ impl AzureAuth {
     /// Useful in situations where you get fields you that are not covered by
     /// the default mapping or want to change the validaion requirements (i.e
     /// if you want the leeway set to two minutes instead of one).
-    /// 
+    ///
     /// # Note
     /// You'll need to pull in `jsonwebtoken` to use `Validation` from that crate.
     ///
@@ -302,12 +317,8 @@ impl AzureAuth {
             }
         };
 
-        // the jwt library expects a byte input so we need to decode the
-        // base64 data to an bytearray
-        let auth_key_bytes = auth_key.get_public_key()?;
-        //let key_as_bytes = from_base64_to_bytearray(&auth_key)?;
-
-        let valid: Token<T> = jwt::decode(token, &auth_key_bytes, &validator)?;
+        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent());
+        let valid: Token<T> = jwt::decode(token, &key, &validator)?;
 
         Ok(valid)
     }
@@ -343,20 +354,24 @@ impl AzureAuth {
     }
 
     fn refresh_pub_keys(&mut self) -> Result<(), AuthErr> {
-        let mut resp: Response = reqwest::get(&self.jwks_uri)?;
+        let resp: Response = reqwest::blocking::get(&self.jwks_uri)?;
         let resp: JwkSet = resp.json()?;
         self.last_refresh = Some(Local::now().naive_local());
         self.public_keys = Some(resp.keys);
         Ok(())
     }
 
-    fn refresh_rwks_uri(&mut self) -> Result<(), AuthErr> {
+    /// Refreshes the jwks_uri by re-fetching it from the the OpenID metadata
+    /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+    /// Usually, this is not needed but for some cases you might want to try
+    /// to fetch a new uri on receiving an error.
+    pub fn refresh_rwks_uri(&mut self) -> Result<(), AuthErr> {
         self.jwks_uri = AzureAuth::get_jwks_uri()?;
         Ok(())
     }
 
     fn get_jwks_uri() -> Result<String, AuthErr> {
-        let mut resp: Response = reqwest::get(AZ_OPENID_URL)?;
+        let resp: Response = reqwest::blocking::get(AZ_OPENID_URL)?;
         let resp: OpenIdResponse = resp.json()?;
 
         Ok(resp.jwks_uri)
@@ -512,22 +527,6 @@ pub struct AzureJwtClaims {
     pub ver: String,
 }
 
-/// URL-safe character set without padding that allows trailing bits,
-/// which appear in some JWT implementations.
-fn from_base64_to_bytearray(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
-    let b64_config = base64::URL_SAFE_NO_PAD.decode_allow_trailing_bits(true);
-
-    let decoded = base64::decode_config(b64_str, b64_config)
-        .map_err(|e| AuthErr::ParseError(e.to_string()))?;
-    Ok(decoded)
-}
-
-fn from_base64_to_bytearray_non_url(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
-    let decoded = base64::decode_config(b64_str, base64::STANDARD)
-        .map_err(|e| AuthErr::ParseError(e.to_string()))?;
-    Ok(decoded)
-}
-
 #[derive(Debug, Deserialize)]
 struct JwkSet {
     keys: Vec<Jwk>,
@@ -541,15 +540,12 @@ pub struct Jwk {
 }
 
 impl Jwk {
-    pub fn get_public_key(&self) -> Result<Vec<u8>, AuthErr> {
-        let n = from_base64_to_bytearray(&self.n)?;
-        let e = from_base64_to_bytearray(&self.e)?;
-        let n = openssl::bn::BigNum::from_slice(&n)?;
-        let e = openssl::bn::BigNum::from_slice(&e)?;
+    fn modulus(&self) -> &str {
+        &self.n
+    }
 
-        let key = Rsa::from_public_components(n, e)?;
-        let key_bytes = key.public_key_to_der_pkcs1()?;
-        Ok(key_bytes)
+    fn exponent(&self) -> &str {
+        &self.e
     }
 }
 
@@ -568,7 +564,7 @@ mod tests {
     const PUBLIC_KEY_E: &str = "AQAB";
 
     const PRIVATE_KEY_TEST: &str =
-"MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/0tyClUGD9ZBv7kME\
+        "MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/0tyClUGD9ZBv7kME\
 dmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr/wa0RGyd3o0KVCKaynFPVZ\
 WBfn9YIB3muT/8i/Qahw/Zz/UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJT\
 mr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA+ACxv\
@@ -624,18 +620,17 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
                 "tid": "72f988bf-86f1-41af-91ab-2d7cd011db47",
                 "uti": "fqiBqXLPj0eQa82S-IYFAA",
                 "ver": "2.0"
-            }}"#, 
-        chrono::Utc::now().timestamp() - 1000,
-        chrono::Utc::now().timestamp() - 2000,
-        chrono::Utc::now().timestamp() + 1000)
+            }}"#,
+            chrono::Utc::now().timestamp() - 1000,
+            chrono::Utc::now().timestamp() - 2000,
+            chrono::Utc::now().timestamp() + 1000
+        )
     }
 
     // We create a test token from parts here. We use the v2 token used as example
     // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
     fn generate_test_token() -> String {
-        // jwt library expects a `*.der` key wich is a byte encoded file so
-        // we need to convert the key from base64 to their byte value to use them.
-        let private_key = from_base64_to_bytearray_non_url(PRIVATE_KEY_TEST).expect("priv_key");
+        let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
 
         // we need to construct the calims in a function since we need to set
         // the expiration relative to current time
@@ -651,7 +646,8 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
         .join(".");
 
         // we create the signature using our private key
-        let signature = jwt::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
+        let signature =
+            jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
 
         let public_key = Jwk {
             kid: "".to_string(),
@@ -659,15 +655,17 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
             e: PUBLIC_KEY_E.to_string(),
         };
 
-        let public_key = public_key.get_public_key().expect("Get public key.");
+        let public_key = DecodingKey::from_rsa_components(&public_key.n, &public_key.e);
 
         // we construct a complete token which looks like: header.claims.signature
         let complete_token = format!("{}.{}", test_token, signature);
 
         // we verify the signature here as well to catch errors in our testing
         // code early
-        let verified = jwt::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
-            .expect("verified");
+
+        let verified =
+            jwt::crypto::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
+                .expect("verified");
         assert!(verified);
 
         complete_token
@@ -715,5 +713,4 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
         assert!(!az_auth.is_keys_valid());
     }
-
 }

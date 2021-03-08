@@ -1,6 +1,5 @@
-use std::{error::Error, fmt};
-use crate::openssl::error::ErrorStack;
 use crate::jwt;
+use std::{error::Error, fmt};
 
 #[derive(Debug)]
 pub enum AuthErr {
@@ -8,7 +7,6 @@ pub enum AuthErr {
     ConnectionError(reqwest::Error),
     Other(String),
     ParseError(String),
-    OpenSsl(ErrorStack),
 }
 
 impl Error for AuthErr {}
@@ -22,7 +20,6 @@ impl fmt::Display for AuthErr {
             ConnectionError(err) => write!(f, "Could not connect to Microsoft. {}", err),
             Other(msg) => write!(f, "An error occurred: {}", msg),
             ParseError(msg) => write!(f, "Could not parse token. {}", msg),
-            OpenSsl(err) => write!(f, "OpenSsl error. {}", err),
         }
     }
 }
@@ -37,7 +34,4 @@ impl From<jwt::errors::Error> for AuthErr {
     fn from(e: jwt::errors::Error) -> AuthErr {
         AuthErr::InvalidToken(e)
     }
-}
-impl From<ErrorStack> for AuthErr {
-    fn from(err: ErrorStack) -> Self { AuthErr::OpenSsl(err) }
 }
