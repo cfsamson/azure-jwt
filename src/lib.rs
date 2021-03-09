@@ -240,7 +240,7 @@ impl AzureAuth {
     ///
     /// # Note
     /// You'll need to pull in `jsonwebtoken` to use `Validation` from that crate.
-    /// 
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -706,6 +706,12 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     fn azure_ad_get_public_keys() {
         let mut az_auth = AzureAuth::new("app_secret").unwrap();
         az_auth.refresh_pub_keys().unwrap();
+    }
+
+    #[test]
+    fn azure_ad_get_refresh_rwks_uri() {
+        let mut az_auth = AzureAuth::new("app_secret").unwrap();
+        az_auth.refresh_rwks_uri().unwrap();
     }
 
     #[test]
