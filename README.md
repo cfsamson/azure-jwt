@@ -76,9 +76,5 @@ to make a Struct that maps to all the fields in the token and use the `custom_va
 
 For more information, see this article: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 
-## Todo
-
-There are no known errors in the library but there are a few things that could be done to make it better:
-
 [link1]: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 [link2]: https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal
