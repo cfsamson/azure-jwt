@@ -319,7 +319,7 @@ impl AzureAuth {
             }
         };
 
-        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent());
+        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent())?;
         let valid: Token<T> = jwt::decode(token, &key, &validator)?;
 
         Ok(valid)
@@ -649,7 +649,8 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
         // we create the signature using our private key
         let signature =
-            jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
+            jwt::crypto::sign(&test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
+                .expect("Signed");
 
         let public_key = Jwk {
             kid: "".to_string(),
@@ -657,7 +658,7 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
             e: PUBLIC_KEY_E.to_string(),
         };
 
-        let public_key = DecodingKey::from_rsa_components(&public_key.n, &public_key.e);
+        let public_key = DecodingKey::from_rsa_components(&public_key.n, &public_key.e).unwrap();
 
         // we construct a complete token which looks like: header.claims.signature
         let complete_token = format!("{}.{}", test_token, signature);
@@ -665,9 +666,13 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
         // we verify the signature here as well to catch errors in our testing
         // code early
 
-        let verified =
-            jwt::crypto::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
-                .expect("verified");
+        let verified = jwt::crypto::verify(
+            &signature,
+            &test_token.as_bytes(),
+            &public_key,
+            jwt::Algorithm::RS256,
+        )
+        .expect("verified");
         assert!(verified);
 
         complete_token

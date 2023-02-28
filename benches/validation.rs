@@ -71,12 +71,6 @@ fn test_token_claims() -> String {
     )
 }
 
-fn from_base64_to_bytearray(b64_str: &str) -> Result<Vec<u8>, AuthErr> {
-    let decoded = base64::decode_config(b64_str, base64::STANDARD)
-        .map_err(|e| AuthErr::ParseError(e.to_string()))?;
-    Ok(decoded)
-}
-
 // We create a test token from parts here. We use the v2 token used as example
 // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 fn generate_test_token() -> String {
@@ -96,7 +90,8 @@ fn generate_test_token() -> String {
     .join(".");
 
     // we create the signature using our private key
-    let signature = jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Singed.");
+    let signature = jwt::crypto::sign(&test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
+        .expect("Singed.");
 
     // we construct a complete token which looks like: header.claims.signature
     let complete_token = format!("{}.{}", test_token, signature);
