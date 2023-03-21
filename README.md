@@ -1,5 +1,4 @@
 
-
 # A library that authenticates Azure JWT tokens
 
 [![Crates.io](https://img.shields.io/crates/v/azure_jwt.svg)](https://crates.io/crates/azure_jwt)
