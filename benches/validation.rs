@@ -90,8 +90,8 @@ fn generate_test_token() -> String {
     .join(".");
 
     // we create the signature using our private key
-    let signature = jwt::crypto::sign(&test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
-        .expect("Singed.");
+    let signature =
+        jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Singed.");
 
     // we construct a complete token which looks like: header.claims.signature
     let complete_token = format!("{}.{}", test_token, signature);
