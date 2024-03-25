@@ -632,18 +632,20 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     // We create a test token from parts here. We use the v2 token used as example
     // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
     fn generate_test_token() -> String {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+
         let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
 
         // we need to construct the calims in a function since we need to set
         // the expiration relative to current time
-        let test_token_playload = test_token_claims();
+        let test_token_payload = test_token_claims();
         let test_token_header = test_token_header();
 
         // we base64 (url-safe-base64) the header and claims and arrange
         // as a jwt payload -> header_as_base64.claims_as_base64
         let test_token = [
-            base64::encode_config(&test_token_header, base64::URL_SAFE),
-            base64::encode_config(&test_token_playload, base64::URL_SAFE),
+            URL_SAFE_NO_PAD.encode(&test_token_header),
+            URL_SAFE_NO_PAD.encode(&test_token_payload),
         ]
         .join(".");
 

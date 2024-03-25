@@ -1,4 +1,5 @@
 use azure_jwt::*;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use jsonwebtoken as jwt;
 
 const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
@@ -76,14 +77,14 @@ fn generate_test_token() -> String {
 
     // we need to construct the calims in a function since we need to set
     // the expiration relative to current time
-    let test_token_playload = test_token_claims();
+    let test_token_payload = test_token_claims();
     let test_token_header = test_token_header();
 
     // we base64 (url-safe-base64) the header and claims and arrange
     // as a jwt payload -> header_as_base64.claims_as_base64
     let test_token = [
-        base64::encode_config(&test_token_header, base64::URL_SAFE),
-        base64::encode_config(&test_token_playload, base64::URL_SAFE),
+        URL_SAFE_NO_PAD.encode(&test_token_header),
+        URL_SAFE_NO_PAD.encode(&test_token_payload),
     ]
     .join(".");
 
