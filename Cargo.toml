@@ -1,6 +1,6 @@
 [package]
 name = "azure_jwt"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Carl Fredrik Samson <cf@samson.no>"]
 edition = "2018"
 repository = "https://github.com/cfsamson/azure-jwt"
