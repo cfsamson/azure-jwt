@@ -18,7 +18,7 @@
 //! 6. That the algorithm in the token header is the same as we use*
 //!
 //! * Note that we do NOT use the token header to set the algorithm for us, look [at this article
-//! for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
+//!   for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
 //!
 //! The validation will `Error` on a failed validation providing more granularity for library users
 //! to find out why the token was rejected.
@@ -270,7 +270,7 @@ impl AzureAuth {
     where
         for<'de> T: Serialize + Deserialize<'de>,
     {
-        let decoded: Token<T> = self.validate_token_authenticity(token, &validator)?;
+        let decoded: Token<T> = self.validate_token_authenticity(token, validator)?;
         Ok(decoded)
     }
 
@@ -320,7 +320,7 @@ impl AzureAuth {
         };
 
         let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent())?;
-        let valid: Token<T> = jwt::decode(token, &key, &validator)?;
+        let valid: Token<T> = jwt::decode(token, &key, validator)?;
 
         Ok(valid)
     }
@@ -593,13 +593,12 @@ GruG96j1JcehpbcWKV+ObyMQuk65dM94uM7Wa+2NCA/MvorVcU7wdPbq7/eczZU4\
 xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
     fn test_token_header() -> String {
-        format!(
-            r#"{{
-                "typ": "JWT",
-                "alg": "RS256",
-                "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
-            }}"#
-        )
+        r#"{
+               "typ": "JWT",
+               "alg": "RS256",
+               "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
+           }"#
+        .to_string()
     }
 
     fn test_token_claims() -> String {
@@ -651,7 +650,7 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
         // we create the signature using our private key
         let signature =
-            jwt::crypto::sign(&test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
+            jwt::crypto::sign(test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
                 .expect("Signed");
 
         let public_key = Jwk {
@@ -668,10 +667,9 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
         // we verify the signature here as well to catch errors in our testing
         // code early
-
         let verified = jwt::crypto::verify(
             &signature,
-            &test_token.as_bytes(),
+            test_token.as_bytes(),
             &public_key,
             jwt::Algorithm::RS256,
         )

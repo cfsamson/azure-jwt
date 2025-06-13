@@ -33,13 +33,12 @@ const PRIVATE_KEY_TEST: &str = "MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/
 
 // Token taken from microsoft docs: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 fn test_token_header() -> String {
-    format!(
-        r#"{{
-                "typ": "JWT",
-                "alg": "RS256",
-                "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
-            }}"#
-    )
+    r#"{
+           "typ": "JWT",
+           "alg": "RS256",
+           "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
+       }"#
+    .to_string()
 }
 
 // Token taken from microsift docs: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
@@ -89,7 +88,7 @@ fn generate_test_token() -> String {
     .join(".");
 
     // we create the signature using our private key
-    let signature = jwt::crypto::sign(&test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
+    let signature = jwt::crypto::sign(test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
         .expect("Singed.");
 
     // we construct a complete token which looks like: header.claims.signature
