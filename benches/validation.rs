@@ -93,7 +93,7 @@ fn generate_test_token() -> String {
         .expect("Singed.");
 
     // we construct a complete token which looks like: header.claims.signature
-    let complete_token = format!("{}.{}", test_token, signature);
+    let complete_token = format!("{test_token}.{signature}");
 
     complete_token
 }
