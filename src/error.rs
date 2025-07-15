@@ -16,10 +16,10 @@ impl fmt::Display for AuthErr {
         use AuthErr::*;
 
         match self {
-            InvalidToken(err) => write!(f, "Invalid token. {}", err),
-            ConnectionError(err) => write!(f, "Could not connect to Microsoft. {}", err),
-            Other(msg) => write!(f, "An error occurred: {}", msg),
-            ParseError(msg) => write!(f, "Could not parse token. {}", msg),
+            InvalidToken(err) => write!(f, "Invalid token. {err}"),
+            ConnectionError(err) => write!(f, "Could not connect to Microsoft. {err}"),
+            Other(msg) => write!(f, "An error occurred: {msg}"),
+            ParseError(msg) => write!(f, "Could not parse token. {msg}"),
         }
     }
 }

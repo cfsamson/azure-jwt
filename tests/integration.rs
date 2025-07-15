@@ -1,7 +1,8 @@
 use azure_jwt::*;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use jsonwebtoken as jwt;
 
-const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+const PUBLIC_KEY_N: &str = "7HQY5BxK3kBm7TaeUZZS5demnF5X0K7_0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr_wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT_8i_Qahw_Zz_UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA-ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM_Lagxpw2luwpvaBmDO5tHqFOO-6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQ";
 const PUBLIC_KEY_E: &str = "AQAB";
 
 const PRIVATE_KEY_TEST: &str = "MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/0tyClUGD9ZBv7kME\
@@ -32,13 +33,12 @@ const PRIVATE_KEY_TEST: &str = "MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/
 
 // Token taken from microsoft docs: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 fn test_token_header() -> String {
-    format!(
-        r#"{{
-                "typ": "JWT",
-                "alg": "RS256",
-                "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
-            }}"#
-    )
+    r#"{
+           "typ": "JWT",
+           "alg": "RS256",
+           "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
+       }"#
+    .to_string()
 }
 
 // Token taken from microsift docs: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
@@ -76,23 +76,23 @@ fn generate_test_token() -> String {
 
     // we need to construct the calims in a function since we need to set
     // the expiration relative to current time
-    let test_token_playload = test_token_claims();
+    let test_token_payload = test_token_claims();
     let test_token_header = test_token_header();
 
     // we base64 (url-safe-base64) the header and claims and arrange
     // as a jwt payload -> header_as_base64.claims_as_base64
     let test_token = [
-        base64::encode_config(&test_token_header, base64::URL_SAFE),
-        base64::encode_config(&test_token_playload, base64::URL_SAFE),
+        URL_SAFE_NO_PAD.encode(&test_token_header),
+        URL_SAFE_NO_PAD.encode(&test_token_payload),
     ]
     .join(".");
 
     // we create the signature using our private key
-    let signature =
-        jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Singed.");
+    let signature = jwt::crypto::sign(test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
+        .expect("Singed.");
 
     // we construct a complete token which looks like: header.claims.signature
-    let complete_token = format!("{}.{}", test_token, signature);
+    let complete_token = format!("{test_token}.{signature}");
 
     complete_token
 }

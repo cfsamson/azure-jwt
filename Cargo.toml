@@ -14,14 +14,14 @@ A simple JWT validator for Microsoft Azure Id tokens.
 """
 
 [dependencies]
-jsonwebtoken = { version = "7.2.0", default-features = false }
+jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
 reqwest = {version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"]}
-serde = { version = "1.0.124", features = ["derive"] }
-chrono = "0.4.19"
+serde = { version = "1", features = ["derive"] }
+chrono = "0.4"
 
 [dev-dependencies]
 criterion = "0.3.4"
-base64 = "0.13.0"
+base64 = "0.22.0"
 
 [[bench]]
 name = "validation"

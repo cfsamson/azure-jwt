@@ -18,7 +18,7 @@
 //! 6. That the algorithm in the token header is the same as we use*
 //!
 //! * Note that we do NOT use the token header to set the algorithm for us, look [at this article
-//! for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
+//!   for more information on why that would be bad](https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/)
 //!
 //! The validation will `Error` on a failed validation providing more granularity for library users
 //! to find out why the token was rejected.
@@ -40,8 +40,9 @@
 //!
 //! ```rust
 //! use azure_jwt::*;
+//! use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 //! # use jsonwebtoken as jwt;
-//! # const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+//! # const PUBLIC_KEY_N: &str = "7HQY5BxK3kBm7TaeUZZS5demnF5X0K7_0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr_wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT_8i_Qahw_Zz_UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA-ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM_Lagxpw2luwpvaBmDO5tHqFOO-6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQ";
 //! # const PUBLIC_KEY_E: &str = "AQAB";
 //! # const PRIVATE_KEY_TEST: &str = "MIIEowIBAAKCAQEA7HQY5BxK3kBm7TaeUZZS5demnF5X0K7/0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr/wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT/8i/Qahw/Zz/UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA+ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM/Lagxpw2luwpvaBmDO5tHqFOO+6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQIDAQABAoIBAQC982Yrmi7q7IHC/qWglUpzKhLGe2PAWVVaZ5rfnIoNs8K3fU8QcUKumFGAMsjpeM1pnaXSeExFmGsMY+Ox1YwSUA81DYxuH6Ned86YDqpgIDr5M0Ba7JmDOLWXoIR8byB19oMOuhjBAW+PEKlb0Z2a1f1Gt3J8oAxWq8PDsShHRdjyesVS36QZpIgjZskcNws/zqqqDRrLWuLmAvk6E+tMD6sqo9xpzEqHF7rmwtt5yAtM1oZdWoEg2O+wZH5DBX2GhLlNZi/8sIiFMo+jouQn+l6Qc4G65vnnoZ+yEuf9fTJPnTHBFMViUcmTPsdbD4eLfrRXwAE9GYrvR/RVusABAoGBAPgsQ4kAChpzU2aP21NQV1XTBW+eoHVbcJoYuOlmwB6x5o8lDUz/EQVVYZavfNY1AjhEkfltCDjm1GHyWofrtGKTy7DHSZwPw5CxuqDtaiC6PMpFEu+Oxa09s7IZxpgInlrhY5JskOkH495BQ0xIU8UDxuP6sdtVNeQmWGjKG7kBAoGBAPPpNid4QEV4XleyAXT/JQGugdpa7TirWOEATNo10YPPqz7GphRhucT0ipNKMi/0XKh3U0IC7XxjUvtE2LP9TVGAcV/Wzi4EYp1fziFuF9QcUds2tJ60SpfgIQrmVcF1zHxn4/mSABoIyFxZSb4Tq9f+KXPAO5/l0NjgrVwk6gVZAoGAbMVZxE4UH4u0XhtnEZkA7kjS9R0dTtKJA8EaKpIyWkG2v76JmdmhaCkH4LeBi5EoK+lB4YR8OhRRuawzKaeRJDOK7ywpgxEVsfFzzty/yyBVTIIBzqVQ1qFYhRLvC+ubHFH1BlQ3HyuqH9uS13hL3unM3lceZPdv61MzJJqQlAECgYAWg0MFV5sPDnIexAZQZzBiPFot7lCQ93fHpMBzL557/RIARFOV9AMyg6O6vpFtTa+zuPfNUvnajkxddthNnKajTCiqwOfc5Xi4r9wVx9SZNlfz1NPNBjUQWZaTK/lkVtwd63TmVyx9OqxLoc4lpikpUYM/9NFMC+k/61T0+U9EWQKBgCdZV3yxwkz3pi6/E40EXfUsj8HQG/UtFJGeUNQiysBrxTmtmwLyvJeCGruG96j1JcehpbcWKV+ObyMQuk65dM94uM7Wa+2NCA/MvorVcU7wdPbq7/eczZU4xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 //! # fn test_token_header() -> String {
@@ -78,30 +79,32 @@
 //! #         chrono::Utc::now().timestamp() - 2000,
 //! #         chrono::Utc::now().timestamp() + 1000)
 //! # }
+//! #
 //! # fn generate_test_token() -> String {
 //! #     let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
 //! #     let test_token_playload = test_token_claims();
 //! #     let test_token_header = test_token_header();
 //! #     let test_token = [
-//! #         base64::encode_config(&test_token_header, base64::URL_SAFE),
-//! #         base64::encode_config(&test_token_playload, base64::URL_SAFE),
+//! #         URL_SAFE_NO_PAD.encode(&test_token_header),
+//! #         URL_SAFE_NO_PAD.encode(&test_token_playload),
 //! #     ]
 //! #     .join(".");
-//! #     let signature = jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
+//! #     let signature = jwt::crypto::sign(test_token.as_bytes(), &private_key, jwt::Algorithm::RS256).expect("Signed");
 //! #     let public_key = Jwk {
 //! #         kid: "".to_string(),
 //! #         n: PUBLIC_KEY_N.to_string(),
 //! #         e: PUBLIC_KEY_E.to_string(),
 //! #     };
-//! #     let public_key = jwt::DecodingKey::from_rsa_components(&public_key.n, &public_key.e);
+//! #     let public_key = jwt::DecodingKey::from_rsa_components(&public_key.n, &public_key.e).unwrap();
 //! #     let complete_token = format!("{}.{}", test_token, signature);
-//! #     let verified = jwt::crypto::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
+//! #     let verified = jwt::crypto::verify(&signature, test_token.as_bytes(), &public_key, jwt::Algorithm::RS256)
 //! #         .expect("verified");
 //! #     assert!(verified);
 //! #     complete_token
 //! # }
+//! #
 //! # let token = generate_test_token();
-//! # let n: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+//! # let n: &str = "7HQY5BxK3kBm7TaeUZZS5demnF5X0K7_0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr_wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT_8i_Qahw_Zz_UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA-ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM_Lagxpw2luwpvaBmDO5tHqFOO-6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQ";
 //! # let e: &str = "AQAB";
 //!
 //! # let key = Jwk {
@@ -270,7 +273,7 @@ impl AzureAuth {
     where
         for<'de> T: Serialize + Deserialize<'de>,
     {
-        let decoded: Token<T> = self.validate_token_authenticity(token, &validator)?;
+        let decoded: Token<T> = self.validate_token_authenticity(token, validator)?;
         Ok(decoded)
     }
 
@@ -319,8 +322,8 @@ impl AzureAuth {
             }
         };
 
-        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent());
-        let valid: Token<T> = jwt::decode(token, &key, &validator)?;
+        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent())?;
+        let valid: Token<T> = jwt::decode(token, &key, validator)?;
 
         Ok(valid)
     }
@@ -562,7 +565,7 @@ type Token<T> = jwt::TokenData<T>;
 mod tests {
     use super::*;
 
-    const PUBLIC_KEY_N: &str = "AOx0GOQcSt5AZu02nlGWUuXXppxeV9Cu_9LcgpVBg_WQb-5DBHZpqs8AMek5u5iI4hkHCcOyMbQrBsDIVa9xxZxR2kq_8GtERsnd6NClQimspxT1WVgX5_WCAd5rk__Iv0GocP2c_1CcdT8is2OZHeWQySyQNSgyJYg6Up7kFtYabiCyU5q9tTIHQPXiwY53IGsNvSkqbk-OsdWPT3E4dqp3vNraMqXhuSZ-52kLCHqwPgAsbztfFJxSAEBcp-TS3uNuHeSJwNWjvDKTPy2oMacNpbsKb2gZgzubR6hTjvupRjaQ9SHhXyL9lmSZOpCzz2XJSVRopKUUtB-VGA0qVlk";
+    const PUBLIC_KEY_N: &str = "7HQY5BxK3kBm7TaeUZZS5demnF5X0K7_0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr_wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT_8i_Qahw_Zz_UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA-ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM_Lagxpw2luwpvaBmDO5tHqFOO-6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQ";
     const PUBLIC_KEY_E: &str = "AQAB";
 
     const PRIVATE_KEY_TEST: &str =
@@ -593,13 +596,12 @@ GruG96j1JcehpbcWKV+ObyMQuk65dM94uM7Wa+2NCA/MvorVcU7wdPbq7/eczZU4\
 xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
 
     fn test_token_header() -> String {
-        format!(
-            r#"{{
-                "typ": "JWT",
-                "alg": "RS256",
-                "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
-            }}"#
-        )
+        r#"{
+               "typ": "JWT",
+               "alg": "RS256",
+               "kid": "i6lGk3FZzxRcUb2C3nEQ7syHJlY"
+           }"#
+        .to_string()
     }
 
     fn test_token_claims() -> String {
@@ -632,24 +634,27 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     // We create a test token from parts here. We use the v2 token used as example
     // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
     fn generate_test_token() -> String {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+
         let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
 
         // we need to construct the calims in a function since we need to set
         // the expiration relative to current time
-        let test_token_playload = test_token_claims();
+        let test_token_payload = test_token_claims();
         let test_token_header = test_token_header();
 
         // we base64 (url-safe-base64) the header and claims and arrange
         // as a jwt payload -> header_as_base64.claims_as_base64
         let test_token = [
-            base64::encode_config(&test_token_header, base64::URL_SAFE),
-            base64::encode_config(&test_token_playload, base64::URL_SAFE),
+            URL_SAFE_NO_PAD.encode(&test_token_header),
+            URL_SAFE_NO_PAD.encode(&test_token_payload),
         ]
         .join(".");
 
         // we create the signature using our private key
         let signature =
-            jwt::crypto::sign(&test_token, &private_key, jwt::Algorithm::RS256).expect("Signed");
+            jwt::crypto::sign(test_token.as_bytes(), &private_key, jwt::Algorithm::RS256)
+                .expect("Signed");
 
         let public_key = Jwk {
             kid: "".to_string(),
@@ -657,17 +662,21 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
             e: PUBLIC_KEY_E.to_string(),
         };
 
-        let public_key = DecodingKey::from_rsa_components(&public_key.n, &public_key.e);
+        let public_key = DecodingKey::from_rsa_components(&public_key.n, &public_key.e)
+            .expect("Decoding key could not be created from rsa component");
 
         // we construct a complete token which looks like: header.claims.signature
-        let complete_token = format!("{}.{}", test_token, signature);
+        let complete_token = format!("{test_token}.{signature}");
 
         // we verify the signature here as well to catch errors in our testing
         // code early
-
-        let verified =
-            jwt::crypto::verify(&signature, &test_token, &public_key, jwt::Algorithm::RS256)
-                .expect("verified");
+        let verified = jwt::crypto::verify(
+            &signature,
+            test_token.as_bytes(),
+            &public_key,
+            jwt::Algorithm::RS256,
+        )
+        .expect("verified");
         assert!(verified);
 
         complete_token
