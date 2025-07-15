@@ -141,7 +141,7 @@
 //! }
 //! ```
 //!
-use chrono::{Duration, Local, NaiveDateTime};
+use chrono::{Local, NaiveDateTime, TimeDelta};
 use jsonwebtoken as jwt;
 use jwt::DecodingKey;
 use reqwest::{self, blocking::Response};
@@ -335,7 +335,7 @@ impl AzureAuth {
 
         match &self.last_refresh {
             Some(lr) => {
-                self.retry_counter == 0 && Local::now().naive_local() - *lr > Duration::hours(1)
+                self.retry_counter == 0 && Local::now().naive_local() - *lr > TimeDelta::try_hours(1).unwrap()
             }
             None => false,
         }
@@ -354,7 +354,7 @@ impl AzureAuth {
     fn is_keys_valid(&self) -> bool {
         match self.last_refresh {
             None => false,
-            Some(lr) => (Local::now().naive_local() - lr) <= Duration::hours(self.exp_hours),
+            Some(lr) => (Local::now().naive_local() - lr) <= TimeDelta::try_hours(self.exp_hours).unwrap(),
         }
     }
 
@@ -726,7 +726,7 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     #[test]
     fn is_not_valid_more_than_24h() {
         let mut az_auth = AzureAuth::new("app_secret").unwrap();
-        az_auth.last_refresh = Some(Local::now().naive_local() - Duration::hours(25));
+        az_auth.last_refresh = Some(Local::now().naive_local() - TimeDelta::try_hours(25).unwrap());
 
         assert!(!az_auth.is_keys_valid());
     }
