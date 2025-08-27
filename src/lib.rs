@@ -7,9 +7,9 @@
 //! It uses `request` with the "blocking" feature to fetch metadata and public
 //! keys, but used correctly it will only update these once a day.
 //!
-//! # Dafault validation
+//! # Default validation
 //!
-//! **There are mainly six conditions a well formed token will need to meet to be validated:**
+//! **There are mainly six conditions a well-formed token will need to meet to be validated:**
 //! 1. That the token is issued by Azure and is not tampered with
 //! 2. That this token is issued for use in your application
 //! 3. That the token is not expired
@@ -26,15 +26,16 @@
 //! If the token is invalid it will return an Error instead of a boolean. The main reason for this
 //! is easier logging of what type of test it failed.
 //!
-//! You also have a `validate_custom` mathod which gives you full control over the mapping of the token
-//! fields and more control over the validation.
+//! There are also `validate_custom` functions which give you full control over the mapping of the
+//! token fields and more control over the validation.
 //!
 //! # Security
 //! You will need a private app_id created by Azure for your application to be able to veriify that
 //! the token is created for your application (and not anyone with a valid Azure token can log in)
 //! and you will need to authenticate that the user has the right access to your system.
 //!
-//! For more information, see this artice: https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+//! For more information, see this article:
+//! https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
 //!
 //! # Example
 //!
@@ -122,20 +123,28 @@
 //!
 //! # Example in webserver
 //!
-//! ```rust, ignore
+//! ```rust,no_run
+//! # use std::sync::{Arc, Mutex};
+//! # type Error = Box<dyn std::error::Error>;
+//! # fn app<T>(_: T) {}
+//! # struct Server;
+//! # impl Server {
+//! #   fn new<F>(_: F) -> Server { Server }
+//! #   fn bind<F>(self, _: F) -> Result<Server, Error> { Ok(self) }
+//! #   fn run(self) {}
+//! # }
 //! struct AppState {
-//!     azure_auth: auth::AzureAuth,
+//!     azure_auth: azure_jwt::AzureAuth,
 //! }
 //!
 //! pub fn start_web_server(port: &str) -> Result<(), Error> {
-//!
-//!     // since this calls windows api, wrap in Arc<Mutex<_>> and share the validator
+//!     // since this calls Microsoft api, wrap in Arc<Mutex<_>> and share the validator
 //!     let app_state = Arc::new(Mutex::new(AppState {
-//!         azure_auth: auth::AzureAuth::new("32166c25-5e31-4cfc-a29b-04d0dfdb019a").unwrap(),
+//!         azure_auth: azure_jwt::AzureAuth::new("32166c25-5e31-4cfc-a29b-04d0dfdb019a").unwrap(),
 //!     }));
 //!     println!("Starting web server on: http://localhost:8000");
 //!
-//!     server::new(move || app(app_state.clone())).bind(port)?.run();
+//!     Server::new(move || app(app_state.clone())).bind(port)?.run();
 //!
 //!     Ok(())
 //! }
@@ -144,8 +153,12 @@
 use chrono::{Local, NaiveDateTime, TimeDelta};
 use jsonwebtoken as jwt;
 use jwt::DecodingKey;
-use reqwest::{self, blocking::Response};
+#[cfg(feature = "blocking")]
+use reqwest::blocking::{get as get_blocking, Response as ResponseBlocking};
+#[cfg(feature = "async")]
+use reqwest::{get as get_async, Response as ResponseAsync};
 use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 
 mod error;
 pub use error::AuthErr;
@@ -153,22 +166,22 @@ pub use error::AuthErr;
 const AZ_OPENID_URL: &str =
     "https://login.microsoftonline.com/common/.well-known/openid-configuration";
 
-/// AzureAuth is the what you'll use to validate your token.
+/// AzureAuth is what you'll use to validate your token.
 ///
 /// # Defaults
 ///
-/// - Public key expiration: dafault set to 24h, use `set_expiration` to set a different expiration
+/// - Public key expiration: default set to 24h, use `set_expiration` to set a different expiration
 ///   in hours.
 /// - Hashing algorithm: Sha256, you can't change this setting. Submit an issue in the github repo
 ///   if this is important to you
 /// - Retry on no match. If no matching key is found and our keys are older than an hour, we
-///   refresh the keys and try once more. Limited to once in an hour. You can disable this by
-///   calling `set_no_retry()`.
+///   refresh the keys and try once more. Limited to once in an hour. You can avoid this behavior
+///   by using offline-validation and manually checking for key expiration.
 /// - The timestamps are given a 60s "leeway" to account for time skew between servers
 ///
 /// # Errors:
 ///
-/// - If one of Microsofts enpoints for public keys are down
+/// - If one of Microsoft's endpoints for public keys are down
 /// - If the token can't be parsed as a valid Azure token
 /// - If the tokens fails it's authenticity test
 /// - If the token is invalid
@@ -178,12 +191,133 @@ pub struct AzureAuth {
     jwks_uri: String,
     public_keys: Option<Vec<Jwk>>,
     last_refresh: Option<NaiveDateTime>,
-    exp_hours: i64,
-    retry_counter: u32,
-    is_retry_enabled: bool,
-    is_offline: bool,
+    exp_hours: TimeDelta,
 }
 
+const EXP_HOURS: TimeDelta = TimeDelta::try_hours(24).unwrap();
+
+impl AzureAuth {
+    /// Does not call the Microsoft openid configuration endpoint or fetches the JWK set.
+    /// Use this if you want to handle updating the public keys yourself
+    pub fn new_offline(aud: impl Into<String>, public_keys: Vec<Jwk>) -> Result<Self, AuthErr> {
+        Ok(AzureAuth {
+            aud_to_val: aud.into(),
+            jwks_uri: String::new(),
+            public_keys: Some(public_keys),
+            last_refresh: Some(Local::now().naive_local()),
+            exp_hours: EXP_HOURS,
+        })
+    }
+
+    #[inline]
+    fn should_retry(&self) -> bool {
+        const ONE_HOUR: TimeDelta = TimeDelta::try_hours(1).unwrap();
+        self.last_refresh.map_or(
+            false,
+            |last_refresh| Local::now().naive_local() - last_refresh > ONE_HOUR,
+        )
+    }
+
+    /// Sets the expiration of the cached public keys in hours. Pr. 04.2019 Microsoft rotates these
+    /// every 24h.
+    pub fn set_expiration(&mut self, hours: i64) {
+        self.exp_hours = TimeDelta::hours(hours);
+    }
+
+    /// Checks if there are unexpired public keys.
+    pub fn has_valid_keys(&self) -> bool {
+        self.last_refresh.map_or(
+            false,
+            |last_refresh| Local::now().naive_local() - last_refresh <= self.exp_hours,
+        )
+    }
+
+    /// If you use the "offline" variant you'll need this to update the public keys, if you don't
+    /// use the offline version you probably don't want to change these unless you're testing.
+    ///
+    /// A non-empty vec of keys are assumed to be valid for the duration of the set expiration.
+    pub fn set_public_keys(&mut self, pub_keys: Vec<Jwk>) {
+        if pub_keys.is_empty() {
+            self.last_refresh = None;
+            self.public_keys = None;
+        } else {
+            self.last_refresh = Some(Local::now().naive_local());
+            self.public_keys = Some(pub_keys);
+        }
+    }
+
+    /// Allows for a custom validator and mapping the token to your own type.
+    /// Useful in situations where you get fields you that are not covered by
+    /// the default mapping or want to change the validation requirements (i.e
+    /// if you want the leeway set to two minutes instead of one).
+    ///
+    /// This call will not check the expiry of, nor try to refresh, public keys.
+    ///
+    /// # Note
+    /// You'll need to pull in `jsonwebtoken` to use `Validation` from that crate.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use azure_oauth_r1s::*;
+    /// use jsonwebtoken::{Validation, Token};
+    /// use serde::{Seralize, Deserialize};
+    ///
+    /// let mut validator = Validation::new();
+    /// validator.leeway = 120;
+    ///
+    /// #[derive(Serialize, Deserialize)]
+    /// struct MyClaims {
+    ///     group: String,
+    ///     roles: Vec<String>,
+    /// }
+    ///
+    /// let auth = AzureAuth::new(my_client_id_from_azure).unwrap();
+    ///
+    /// let valid_token: Token<MyClaims>  = auth.validate_custom_offline(some_token, &validator).unwrap();
+    /// ```
+    pub fn validate_custom_offline<T: DeserializeOwned>(
+        &mut self,
+        token: &str,
+        validator: &jwt::Validation,
+    ) -> Result<Token<T>, AuthErr> {
+        // does not validate the token!
+        let decoded = jwt::decode_header(token)?;
+
+        let Some(auth_key) = (match (&self.public_keys, &decoded.kid) {
+            (Some(keys), Some(kid)) => keys.iter().find(|k| k.kid == *kid),
+            (None, _) => return Err(AuthErr::InvalidState),
+            (_, None) => return Err(AuthErr::InvalidTokenState),
+        }) else {
+            return Err(AuthErr::TokenMismatch);
+        };
+
+        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent())?;
+        Ok(jwt::decode(token, &key, validator)?)
+    }
+
+    /// Default validation, see `AzureAuth` documentation for the defaults.
+    ///
+    /// This call will not check the expiry of, nor try to refresh, public keys.
+    pub fn validate_token_offline(&mut self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
+        let mut validator = jwt::Validation::new(jwt::Algorithm::RS256);
+
+        // exp, nbf, iat is set to validate as default
+        validator.leeway = 60;
+        validator.set_audience(&[&self.aud_to_val]);
+        self.validate_custom_offline(token, &validator)
+    }
+
+    /// Assigns the jwks_uri, as it would have been provided by fetching from the OpenID metadata
+    /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+    ///
+    /// Usually, this is not needed, but will affect fetching of public keys.
+    pub fn set_jwks_uri(&mut self, uri: impl Into<String>) {
+        self.jwks_uri = uri.into();
+    }
+}
+
+#[cfg(feature = "blocking")]
 impl AzureAuth {
     /// Creates a new dafault instance. This method will call the Microsoft apis to fetch the current keys
     /// which can fail. The public keys are fetched since we need them to perform
@@ -196,49 +330,132 @@ impl AzureAuth {
     /// # Errors
     ///
     /// If there is a connection issue to the Microsoft APIs.
+    #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
     pub fn new(aud: impl Into<String>) -> Result<Self, AuthErr> {
-        Ok(AzureAuth {
+        let mut azure_auth = AzureAuth {
             aud_to_val: aud.into(),
             jwks_uri: AzureAuth::get_jwks_uri()?,
             public_keys: None,
             last_refresh: None,
-            exp_hours: 24,
-            retry_counter: 0,
-            is_retry_enabled: true,
-            is_offline: false,
-        })
+            exp_hours: EXP_HOURS,
+        };
+        azure_auth.refresh_pub_keys()?;
+        Ok(azure_auth)
     }
 
-    /// Does not call the Microsoft openid configuration endpoint or fetches the JWK set.
-    /// Use this if you want to handle updating the public keys yourself
-    pub fn new_offline(aud: impl Into<String>, public_keys: Vec<Jwk>) -> Result<Self, AuthErr> {
-        Ok(AzureAuth {
-            aud_to_val: aud.into(),
-            jwks_uri: String::new(),
-            public_keys: Some(public_keys),
-            last_refresh: Some(Local::now().naive_local()),
-            exp_hours: 24,
-            retry_counter: 0,
-            is_retry_enabled: true,
-            is_offline: true,
-        })
+    /// Allows for a custom validator and mapping the token to your own type.
+    /// Useful in situations where you get fields you that are not covered by
+    /// the default mapping or want to change the validaion requirements (i.e
+    /// if you want the leeway set to two minutes instead of one).
+    ///
+    /// # Note
+    /// You'll need to pull in `jsonwebtoken` to use `Validation` from that crate.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use azure_oauth_r1s::*;
+    /// use jsonwebtoken::{Validation, TokenData};
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// let mut validator = Validation::new();
+    /// validator.leeway = 120;
+    ///
+    /// #[derive(Serialize, Deserialize)]
+    /// struct MyClaims {
+    ///     group: String,
+    ///     roles: Vec<String>,
+    /// }
+    ///
+    /// let auth = AzureAuth::new(my_client_id_from_azure).unwrap();
+    ///
+    /// let valid_token: TokenData<MyClaims>  = auth.validate_custom(some_token, &validator).unwrap();
+    /// ```
+    #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
+    pub fn validate_custom<T: DeserializeOwned>(
+        &mut self,
+        token: &str,
+        validator: &jwt::Validation,
+    ) -> Result<Token<T>, AuthErr> {
+        if !self.has_valid_keys() {
+            self.refresh_pub_keys()?;
+        }
+        match self.validate_custom_offline(token, validator) {
+            Err(AuthErr::TokenMismatch) if self.should_retry() => {
+                self.refresh_pub_keys()?;
+                self.validate_custom_offline(token, validator)
+            },
+            result => result,
+        }
     }
 
-    /// Dafault validation, see `AzureAuth` documentation for the defaults.
+    /// Default validation, see `AzureAuth` documentation for the defaults.
+    #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
     pub fn validate_token(&mut self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
         let mut validator = jwt::Validation::new(jwt::Algorithm::RS256);
 
         // exp, nbf, iat is set to validate as default
         validator.leeway = 60;
         validator.set_audience(&[&self.aud_to_val]);
-        let decoded: Token<AzureJwtClaims> = self.validate_token_authenticity(token, &validator)?;
+        self.validate_custom(token, &validator)
+    }
 
-        Ok(decoded)
+    /// Refreshes the public keys and resets their expiry.
+    #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
+    pub fn refresh_pub_keys(&mut self) -> Result<(), AuthErr> {
+        let resp: ResponseBlocking = get_blocking(&self.jwks_uri)?;
+        let resp: JwkSet = resp.json()?;
+        self.set_public_keys(resp.keys);
+        Ok(())
+    }
+
+    /// Refreshes the jwks_uri by re-fetching it from the OpenID metadata
+    /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+    /// Usually, this is not needed but for some cases you might want to try
+    /// to fetch a new uri on receiving an error.
+    #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
+    pub fn refresh_jwks_uri(&mut self) -> Result<(), AuthErr> {
+        self.jwks_uri = AzureAuth::get_jwks_uri()?;
+        Ok(())
+    }
+
+    fn get_jwks_uri() -> Result<String, AuthErr> {
+        let resp: ResponseBlocking = get_blocking(AZ_OPENID_URL)?;
+        let resp: OpenIdResponse = resp.json()?;
+
+        Ok(resp.jwks_uri)
+    }
+}
+
+#[cfg(feature = "async")]
+impl AzureAuth {
+    /// Creates a new default instance. This method will call the Microsoft apis to fetch the
+    /// current keys which can fail. The public keys are fetched since we need them to perform
+    /// verification. Please note that fetching the OpenID manifest and public keys are quite slow
+    /// since we call an external API. Try keeping a single instance alive instead of creating new
+    /// ones for every validation. If you need to pass around an instance of the object, creating
+    /// a pool of instances at startup or wrapping a single instance in a `Mutex` is better than
+    /// creating many new instances.
+    ///
+    /// # Errors
+    ///
+    /// If there is a connection issue to the Microsoft APIs.
+    #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+    pub async fn new_async(aud: impl Into<String>) -> Result<Self, AuthErr> {
+        let mut azure_auth = AzureAuth {
+            aud_to_val: aud.into(),
+            jwks_uri: AzureAuth::get_jwks_uri_async().await?,
+            public_keys: None,
+            last_refresh: None,
+            exp_hours: EXP_HOURS,
+        };
+        azure_auth.refresh_pub_keys_async().await?;
+        Ok(azure_auth)
     }
 
     /// Allows for a custom validator and mapping the token to your own type.
     /// Useful in situations where you get fields you that are not covered by
-    /// the default mapping or want to change the validaion requirements (i.e
+    /// the default mapping or want to change the validation requirements (i.e
     /// if you want the leeway set to two minutes instead of one).
     ///
     /// # Note
@@ -262,131 +479,61 @@ impl AzureAuth {
     ///
     /// let auth = AzureAuth::new(my_client_id_from_azure).unwrap();
     ///
-    /// let valid_token: Token<MyClaims>  = auth.validate_custom(some_token, &validator).unwrap();
+    /// let valid_token: Token<MyClaims>  = auth.validate_custom_async(some_token, &validator).await.unwrap();
     /// ```
-    ///
-    pub fn validate_custom<T>(
+    #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+    pub async fn validate_custom_async<T: DeserializeOwned>(
         &mut self,
         token: &str,
         validator: &jwt::Validation,
-    ) -> Result<Token<T>, AuthErr>
-    where
-        for<'de> T: Serialize + Deserialize<'de>,
-    {
-        let decoded: Token<T> = self.validate_token_authenticity(token, validator)?;
-        Ok(decoded)
-    }
-
-    fn validate_token_authenticity<T>(
-        &mut self,
-        token: &str,
-        validator: &jwt::Validation,
-    ) -> Result<Token<T>, AuthErr>
-    where
-        for<'de> T: Serialize + Deserialize<'de>,
-    {
-        // if we´re in offline, we never refresh the keys. It's up to the user to do that.
-        if !self.is_keys_valid() && !self.is_offline {
-            self.refresh_pub_keys()?;
+    ) -> Result<Token<T>, AuthErr> {
+        if !self.has_valid_keys() {
+            self.refresh_pub_keys_async().await?;
         }
-        // does not validate the token!
-        let decoded = jwt::decode_header(token)?;
-
-        let key = match &self.public_keys {
-            None => return Err(AuthErr::Other("Internal err. No public keys found.".into())),
-            Some(keys) => match &decoded.kid {
-                None => return Err(AuthErr::Other("No `kid` in token.".into())),
-                Some(kid) => keys.iter().find(|k| k.kid == *kid),
+        match self.validate_custom_offline(token, validator) {
+            Err(AuthErr::TokenMismatch) if self.should_retry() => {
+                self.refresh_pub_keys_async().await?;
+                self.validate_custom_offline(token, validator)
             },
-        };
-
-        let auth_key = match key {
-            None => {
-                // the first time this happens let's go and refresh the keys and try once more.
-                // It could be that our keys are out of date. Limit to once in an hour.
-                if self.should_retry() {
-                    self.refresh_pub_keys()?;
-                    self.retry_counter += 1;
-                    self.validate_token(token)?;
-                    unreachable!()
-                } else {
-                    self.retry_counter = 0;
-                    return Err(AuthErr::Other(
-                        "Invalid token. Could not verify authenticity.".into(),
-                    ));
-                }
-            }
-            Some(key) => {
-                self.retry_counter = 0;
-                key
-            }
-        };
-
-        let key = DecodingKey::from_rsa_components(auth_key.modulus(), auth_key.exponent())?;
-        let valid: Token<T> = jwt::decode(token, &key, validator)?;
-
-        Ok(valid)
-    }
-
-    fn should_retry(&mut self) -> bool {
-        if self.is_offline || !self.is_retry_enabled {
-            return false;
-        }
-
-        match &self.last_refresh {
-            Some(lr) => {
-                self.retry_counter == 0 && Local::now().naive_local() - *lr > TimeDelta::try_hours(1).unwrap()
-            }
-            None => false,
+            result => result,
         }
     }
 
-    /// Sets the expiration of the cached public keys in hours. Pr. 04.2019 Microsoft rotates these
-    /// every 24h.
-    pub fn set_expiration(&mut self, hours: i64) {
-        self.exp_hours = hours;
+    /// Default validation, see `AzureAuth` documentation for the defaults.
+    #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+    pub async fn validate_token_async(&mut self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
+        let mut validator = jwt::Validation::new(jwt::Algorithm::RS256);
+
+        // exp, nbf, iat is set to validate as default
+        validator.leeway = 60;
+        validator.set_audience(&[&self.aud_to_val]);
+        self.validate_custom_async(token, &validator).await
     }
 
-    pub fn set_no_retry(&mut self) {
-        self.is_retry_enabled = false;
-    }
-
-    fn is_keys_valid(&self) -> bool {
-        match self.last_refresh {
-            None => false,
-            Some(lr) => (Local::now().naive_local() - lr) <= TimeDelta::try_hours(self.exp_hours).unwrap(),
-        }
-    }
-
-    fn refresh_pub_keys(&mut self) -> Result<(), AuthErr> {
-        let resp: Response = reqwest::blocking::get(&self.jwks_uri)?;
-        let resp: JwkSet = resp.json()?;
-        self.last_refresh = Some(Local::now().naive_local());
-        self.public_keys = Some(resp.keys);
+    /// Refreshes the public keys and resets their expiry.
+    #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+    pub async fn refresh_pub_keys_async(&mut self) -> Result<(), AuthErr> {
+        let resp: ResponseAsync = get_async(&self.jwks_uri).await?;
+        let resp: JwkSet = resp.json().await?;
+        self.set_public_keys(resp.keys);
         Ok(())
     }
 
-    /// Refreshes the jwks_uri by re-fetching it from the the OpenID metadata
+    /// Refreshes the jwks_uri by re-fetching it from the OpenID metadata
     /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
     /// Usually, this is not needed but for some cases you might want to try
     /// to fetch a new uri on receiving an error.
-    pub fn refresh_rwks_uri(&mut self) -> Result<(), AuthErr> {
-        self.jwks_uri = AzureAuth::get_jwks_uri()?;
+    #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+    pub async fn refresh_jwks_uri_async(&mut self) -> Result<(), AuthErr> {
+        self.jwks_uri = AzureAuth::get_jwks_uri_async().await?;
         Ok(())
     }
 
-    fn get_jwks_uri() -> Result<String, AuthErr> {
-        let resp: Response = reqwest::blocking::get(AZ_OPENID_URL)?;
-        let resp: OpenIdResponse = resp.json()?;
+    async fn get_jwks_uri_async() -> Result<String, AuthErr> {
+        let resp: ResponseAsync = get_async(AZ_OPENID_URL).await?;
+        let resp: OpenIdResponse = resp.json().await?;
 
         Ok(resp.jwks_uri)
-    }
-
-    /// If you use the "offline" variant you'll need this to update the public keys, if you don't
-    /// use the offline version you probably don't want to change these unless you're testing.
-    pub fn set_public_keys(&mut self, pub_keys: Vec<Jwk>) {
-        self.last_refresh = Some(Local::now().naive_local());
-        self.public_keys = Some(pub_keys);
     }
 }
 
@@ -707,7 +854,7 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     // TODO: we need a test for the retry operation.
 
     #[test]
-    fn refresh_rwks_uri() {
+    fn refresh_jwks_uri() {
         let _az_auth = AzureAuth::new("app_secret").unwrap();
     }
 
@@ -718,9 +865,9 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     }
 
     #[test]
-    fn azure_ad_get_refresh_rwks_uri() {
+    fn azure_ad_get_refresh_jwks_uri() {
         let mut az_auth = AzureAuth::new("app_secret").unwrap();
-        az_auth.refresh_rwks_uri().unwrap();
+        az_auth.refresh_jwks_uri().unwrap();
     }
 
     #[test]
@@ -728,6 +875,6 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
         let mut az_auth = AzureAuth::new("app_secret").unwrap();
         az_auth.last_refresh = Some(Local::now().naive_local() - TimeDelta::try_hours(25).unwrap());
 
-        assert!(!az_auth.is_keys_valid());
+        assert!(!az_auth.has_valid_keys());
     }
 }

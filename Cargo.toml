@@ -1,6 +1,6 @@
 [package]
 name = "azure_jwt"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Carl Fredrik Samson <cf@samson.no>"]
 edition = "2018"
 repository = "https://github.com/cfsamson/azure-jwt"
@@ -13,9 +13,14 @@ description = """
 A simple JWT validator for Microsoft Azure Id tokens.
 """
 
+[features]
+default = ["async"]
+blocking = ["reqwest/blocking"]
+async = ["dep:reqwest"]
+
 [dependencies]
 jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
-reqwest = {version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"]}
+reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true}
 serde = { version = "1", features = ["derive"] }
 chrono = "0.4"
 
@@ -26,3 +31,7 @@ base64 = "0.22.0"
 [[bench]]
 name = "validation"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
