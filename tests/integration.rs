@@ -97,8 +97,10 @@ fn generate_test_token() -> String {
     complete_token
 }
 
+
 #[test]
-fn decode_token() {
+#[cfg(feature="blocking")]
+fn decode_token_blocking() {
     let token = generate_test_token();
     // we need to construct our own key object that matches on `kid` field
     // just as it should if we used the fetched keys from microsofts servers.

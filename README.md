@@ -17,6 +17,31 @@ where a `kid` that doesn't match any of our current public keys wil trigger _one
 just in case the set default is badly synced with the rotation of the public keys or Microsoft decides to rotate the keys
 immediately for some reason. Both of these settings can be configured.
 
+## Async and blocking versions
+
+This library now supports both an async and a blocking API. By default both API's are included which means that you get two different versions like this:
+
+```rust
+// blocking version
+AzureAuth::new()
+
+// async version
+AzureAuth::new_async()
+```
+
+If you only need the async api and don't want to compile the blocking version,you can simply specify that in Cargo.toml like this:
+
+```toml
+[dependencies]
+azure_jwt = { version = "*", default-features = false, features = ["async"] }
+```
+
+The same applies if you only want the blocking API.
+
+```toml
+azure_jwt = { version = "*", default-features = false, features = ["blocking"] }
+```
+
 ## Example
 
 ```rust

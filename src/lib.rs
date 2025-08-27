@@ -709,7 +709,8 @@ struct OpenIdResponse {
 type Token<T> = jwt::TokenData<T>;
 
 #[cfg(test)]
-mod tests {
+#[cfg(feature = "blocking")]
+mod test_blocking {
     use super::*;
 
     const PUBLIC_KEY_N: &str = "7HQY5BxK3kBm7TaeUZZS5demnF5X0K7_0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr_wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT_8i_Qahw_Zz_UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA-ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM_Lagxpw2luwpvaBmDO5tHqFOO-6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQ";

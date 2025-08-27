@@ -14,7 +14,7 @@ A simple JWT validator for Microsoft Azure Id tokens.
 """
 
 [features]
-default = ["async"]
+default = ["blocking", "async"]
 blocking = ["reqwest/blocking"]
 async = ["dep:reqwest"]
 
