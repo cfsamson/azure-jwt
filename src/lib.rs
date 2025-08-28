@@ -277,7 +277,7 @@ impl AzureAuth {
     /// let valid_token: Token<MyClaims>  = auth.validate_custom_offline(some_token, &validator).unwrap();
     /// ```
     pub fn validate_custom_offline<T: DeserializeOwned>(
-        &mut self,
+        &self,
         token: &str,
         validator: &jwt::Validation,
     ) -> Result<Token<T>, AuthErr> {
@@ -299,7 +299,7 @@ impl AzureAuth {
     /// Default validation, see `AzureAuth` documentation for the defaults.
     ///
     /// This call will not check the expiry of, nor try to refresh, public keys.
-    pub fn validate_token_offline(&mut self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
+    pub fn validate_token_offline(&self, token: &str) -> Result<Token<AzureJwtClaims>, AuthErr> {
         let mut validator = jwt::Validation::new(jwt::Algorithm::RS256);
 
         // exp, nbf, iat is set to validate as default
