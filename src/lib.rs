@@ -35,7 +35,7 @@
 //! and you will need to authenticate that the user has the right access to your system.
 //!
 //! For more information, see this article:
-//! https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+//! <https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens>
 //!
 //! # Example
 //!
@@ -309,7 +309,7 @@ impl AzureAuth {
     }
 
     /// Assigns the jwks_uri, as it would have been provided by fetching from the OpenID metadata
-    /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+    /// document. See: <https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata>
     ///
     /// Usually, this is not needed, but will affect fetching of public keys.
     pub fn set_jwks_uri(&mut self, uri: impl Into<String>) {
@@ -410,7 +410,7 @@ impl AzureAuth {
     }
 
     /// Refreshes the jwks_uri by re-fetching it from the OpenID metadata
-    /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+    /// document. See: <https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata>
     /// Usually, this is not needed but for some cases you might want to try
     /// to fetch a new uri on receiving an error.
     #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
@@ -520,7 +520,7 @@ impl AzureAuth {
     }
 
     /// Refreshes the jwks_uri by re-fetching it from the OpenID metadata
-    /// document. See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+    /// document. See: <https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata>
     /// Usually, this is not needed but for some cases you might want to try
     /// to fetch a new uri on receiving an error.
     #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
