@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! # Authenticates Azure JWT tokens.
 //!
 //! This library will fetch public keys from Microsoft and use those keys to validate the

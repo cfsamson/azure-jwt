@@ -1,8 +1,8 @@
 [package]
 name = "azure_jwt"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["Carl Fredrik Samson <cf@samson.no>"]
-edition = "2018"
+edition = "2024"
 repository = "https://github.com/cfsamson/azure-jwt"
 documentation = "https://docs.rs/azure-jwt/"
 readme = "README.md"
@@ -20,7 +20,7 @@ async = ["dep:reqwest"]
 
 [dependencies]
 jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
-reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true}
+reqwest = {version = "0.13", default-features = false, features = ["json", "rustls"], optional = true}
 serde = { version = "1", features = ["derive"] }
 chrono = "0.4"
 
