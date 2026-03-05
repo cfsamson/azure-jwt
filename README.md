@@ -7,6 +7,9 @@
 [docsrs-image]: https://docs.rs/azure_jwt/badge.svg
 [docsrs]: https://docs.rs/azure_jwt
 
+> [!NOTE]
+> As of version 0.4.3 this crate has one [dependabot](https://github.com/cfsamson/azure-jwt/security/dependabot/1) alert. This is fixed in the main branch by updating the `jsonwebtoken` crate to >10.0.3. However this change neccecitated several changes to the test files in how we build the RSA test keys. I'm still reviewing these changes to try to verify them before releasing a new update. Any contributions in this regard by reviewing or expanding the test suite is greatly appreciated. Unless you're impacted by the dependabot alert directly, this crate should be perfectly fine to use with the latest official release.
+
 This library will fetch public keys from Microsoft and use those keys to validate the
 authenticity of a token you provide. It defaults to validating and mapping Azure Id tokens for
 you out of the box.
