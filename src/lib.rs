@@ -42,7 +42,7 @@
 //!
 //! ```rust
 //! use azure_jwt::*;
-//! use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+//! use base64::{engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD}, Engine};
 //! # use jsonwebtoken as jwt;
 //! # const PUBLIC_KEY_N: &str = "7HQY5BxK3kBm7TaeUZZS5demnF5X0K7_0tyClUGD9ZBv7kMEdmmqzwAx6Tm7mIjiGQcJw7IxtCsGwMhVr3HFnFHaSr_wa0RGyd3o0KVCKaynFPVZWBfn9YIB3muT_8i_Qahw_Zz_UJx1PyKzY5kd5ZDJLJA1KDIliDpSnuQW1hpuILJTmr21MgdA9eLBjncgaw29KSpuT46x1Y9PcTh2qne82toypeG5Jn7naQsIerA-ACxvO18UnFIAQFyn5NLe424d5InA1aO8MpM_Lagxpw2luwpvaBmDO5tHqFOO-6lGNpD1IeFfIv2WZJk6kLPPZclJVGikpRS0H5UYDSpWWQ";
 //! # const PUBLIC_KEY_E: &str = "AQAB";
@@ -83,7 +83,9 @@
 //! # }
 //! #
 //! # fn generate_test_token() -> String {
-//! #     let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
+//! #     let der = STANDARD.decode(PRIVATE_KEY_TEST).unwrap();
+//! #     let private_key = jwt::EncodingKey::from_rsa_der(&der);
+//! 
 //! #     let test_token_playload = test_token_claims();
 //! #     let test_token_header = test_token_header();
 //! #     let test_token = [
@@ -783,9 +785,10 @@ xMd+OWT6JsInVM1ASh1mcn+Q0/Z3WqxxetCQLqaMs+FATn059dGf";
     // We create a test token from parts here. We use the v2 token used as example
     // in https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
     fn generate_test_token() -> String {
-        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-
-        let private_key = jwt::EncodingKey::from_base64_secret(PRIVATE_KEY_TEST).unwrap();
+        use base64::{engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD}, Engine};
+        
+        let der = STANDARD.decode(PRIVATE_KEY_TEST).unwrap();
+        let private_key = jwt::EncodingKey::from_rsa_der(&der);
 
         // we need to construct the calims in a function since we need to set
         // the expiration relative to current time
